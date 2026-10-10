@@ -7,8 +7,8 @@
 
 | ジョブ | スケジュール（JST） | データ源 | モデル | 配信先 |
 |---|---|---|---|---|
-| weather-jp-am | 毎日 9:10 | 気象庁 MCP + JSON API + Web検索 | `claude-sonnet-5` | Slack DM |
-| econ-jp-am | 毎日 9:13 | Web検索（日本株・為替・世界の経済指標/イベント） | `claude-sonnet-5` | Slack DM |
+| weather-jp-am | 毎日 9:10 | 気象庁 MCP + JSON API + Web検索 | `claude-haiku-4-5` | Slack DM |
+| econ-jp-am | 毎日 9:13 | Web検索（日本株・為替・世界の経済指標/イベント） | `claude-haiku-4-5` | Slack DM |
 | ai-weekly-digest | 毎週月曜 9:16 | Web検索 | `claude-haiku-4-5` | Slack DM |
 | bsky-weather-am | 毎日 9:25 | 気象庁 MCP → LLM要約 | `claude-haiku-4-5` | **Bluesky**（詳細: [BLUESKY.md](BLUESKY.md)） |
 
@@ -50,3 +50,4 @@
 - 2026-10-10: Bluesky 自動投稿（bsky-weather-am）を追加
 - 2026-08-30: モデルを Ollama から Anthropic（haiku/sonnet）へ移行、夕方配信を廃止、朝を 9:10 台へ変更、Web検索を SearXNG 化
 - 2026-10-10: README を実態に更新（cron 表・モデル・運用設定）
+- 2026-10-10: weather-jp-am / econ-jp-am のモデルが sonnet-5 に巻き戻っていたため haiku-4-5 に再設定（巻き戻り再発、原因未特定）
