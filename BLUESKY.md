@@ -8,7 +8,7 @@
 |---|---|---|
 | 投稿スクリプト | `bin/bsky_post.py`（本リポジトリが正本） | 実行コピーは `~/.openclaw/workspace/bin/bsky_post.py`。標準ライブラリのみ |
 | 認証 | `~/.openclaw/bsky.env`（権限600・リポジトリ外） | 雛形は `bin/bsky.env.example`。アプリパスワードを使用 |
-| cron | `bsky-weather-am`（id `7c515a83-6054-432c-bd5b-fc35f3b4d960`） | 毎日 09:25 JST、haiku／fallback sonnet、結果は Slack DM にも返る |
+| cron | `bsky-weather-am`（id `7c515a83-6054-432c-bd5b-fc35f3b4d960`） | 毎日 09:40 JST、haiku／fallback sonnet、結果は Slack DM にも返る |
 | リンク先 | https://masauehr.github.io/weather_chart_vlm/webui/index.html | 毎朝 8:45 JST に Mac から更新 |
 
 ## 天気図VLM解説の参照とフォールバック（2026-10-10 追加）
@@ -23,7 +23,7 @@
 - 最終回答に使ったモード（VLMあり／VLMなし＋理由）を返し、Slack DM で後から確認できる
 
 実行コピー: `~/.openclaw/workspace/bin/vlm_status.py`（本リポジトリの `bin/` が正本）。
-注意: VLM の更新は 8:45 開始だが遅れる日がある（10/10 は 9:35 完了）。9:25 に間に合わなければ自動的に fail → 独自取得になる。
+注意: VLM の更新は 8:45 開始だが遅れる日がある（10/10 は 9:35 完了）。9:40 に間に合わなければ自動的に fail → 独自取得になる。
 
 ## 元データの取り方（案B: 独立取得）
 
@@ -66,3 +66,4 @@ python3 bin/bsky_post.py --dry-run --text "テスト"                 # 投稿�
 - 2026-10-10: 指示文に台風・津波・地震ツールと優先順位を追加（「台風情報なし」誤記の再発防止）。Slack との比較評価の結果
 - 2026-10-10: 「台風は get_typhoon の結果のみ」の制約を追加
 - 2026-10-10: 天気図VLM解説の参照（失敗時は独自取得）を追加。`bin/vlm_status.py` 新設
+- 2026-10-10: 投稿時刻を 9:25 → 9:40 に変更（VLM 更新が遅れる日があるため）。VLM参照モードで試験投稿し、気圧の谷による雨を正しく反映することを確認。1段落になった問題に対し改行ルールを追加
