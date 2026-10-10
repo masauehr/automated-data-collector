@@ -53,3 +53,4 @@
 - 2026-10-10: weather-jp-am / econ-jp-am のモデルが sonnet-5 に巻き戻っていたため haiku-4-5 に再設定（巻き戻り再発、原因未特定）
 - 2026-10-10: weather-jp-am / bsky-weather-am の指示文に「台風は get_typhoon の結果のみ」を追加（消滅済みの台風27号を現存と誤記したため）
 - 2026-10-10: bsky-weather-am が天気図VLM解説を参照（失敗時は独自取得）するよう変更（[BLUESKY.md](BLUESKY.md)）
+- 2026-10-10: Bluesky B版（コード+LLM）を launchd com.user.bsky_daily_b（毎日 9:41・シャドー）に登録。A/B比較は [COMPARE-A-B.md](COMPARE-A-B.md)

@@ -11,6 +11,9 @@
 
 比較: `python3 bin/compare_bsky.py [日付]`（A版は Bluesky 公開API、トークンは `openclaw cron runs` から）。
 B版の実行は `/opt/homebrew/bin/python3`（mcp 入り）。
+**自動実行**: launchd `com.user.bsky_daily_b`（毎日 9:41 JST、シャドー＝投稿しない）。設定の正本は本リポジトリの `com.user.bsky_daily_b.plist`、実体は `~/Library/LaunchAgents/`。ログは `shadow/launchd.log`（git除外）。
+確認: `launchctl list | grep bsky_daily_b` ／ 手動起動: `launchctl kickstart gui/501/com.user.bsky_daily_b` ／ 停止: `launchctl bootout gui/501/com.user.bsky_daily_b`。
+Mac が起動していないと走らない。A版と同じ日に比較できるのは両方動いた日だけ。
 
 ## 2026-10-10 の初回結果
 
@@ -31,3 +34,4 @@ B版の実行は `/opt/homebrew/bin/python3`（mcp 入り）。
 - 2026-10-10: 作成。B版を新設しシャドーで試走
 - 2026-10-10: 津波ガード（`tsunami_guard.py`）を A版・B版の共通部品として導入。B版の「津波が発生」「津波警報」の言い過ぎはガード後に解消（固定文のみ）
 - 2026-10-10: VLM の台風記述（「本州南岸に接近」）を除外する処理を共通部品 `vlm_status.py` に追加。B版は再実行で台風の記述が get_typhoon の予報に沿うことを確認
+- 2026-10-10: B版を launchd（毎日 9:41・シャドー）に登録し、kickstart で動作確認（VLMあり・問題なし・投稿なし）

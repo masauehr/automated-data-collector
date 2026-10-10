@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.bsky_daily_b</string>
+
+    <!-- B版（コード+LLM）を【シャドーモード】で実行する。--post は付けない＝Blueskyには投稿しない -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/masahiro/openclaw_prj/projects/automated-data-collector/bin/bsky_daily_b.py</string>
+    </array>
+
+    <!-- 毎日 9:41 JST（A版の投稿 9:40 の直後。VLM 更新が遅れる日は自動でVLMなしになる） -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>9</integer>
+        <key>Minute</key><integer>41</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/masahiro/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/masahiro/openclaw_prj/projects/automated-data-collector/shadow/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/masahiro/openclaw_prj/projects/automated-data-collector/shadow/launchd.log</string>
+</dict>
+</plist>
