@@ -11,6 +11,18 @@
 | cron | `bsky-weather-am`（id `7c515a83-6054-432c-bd5b-fc35f3b4d960`） | 毎日 09:25 JST、haiku／fallback sonnet、結果は Slack DM にも返る |
 | リンク先 | https://masauehr.github.io/weather_chart_vlm/webui/index.html | 毎朝 8:45 JST に Mac から更新 |
 
+## 元データの取り方（案B: 独立取得）
+
+Slack のまとめ（weather-jp-am）は参照せず、Bluesky ジョブが気象庁MCPから自分で取得する。
+必須ツール: `get_typhoon` / `get_warning` / `get_early_warning` / `get_tsunami_info` / `get_earthquake_info` / `get_forecast` / `get_forecaster_comment` / `get_daily_ranking`。
+優先順位: 津波 > 台風 > 特別警報・警報 > 大雨・高波・強風 > 地震。取得に失敗した分野は「なし」と書かず触れない。
+※ 2026-10-10 に Slack のまとめ（台風27・28・29号）と比較し、旧指示（`get_typhoon` 等が未指定）では「台風情報なし」と誤記していたため修正。
+Slack のまとめを元にする案A（Slack と必ず一致するが Slack ジョブ失敗時は投稿なし）も検討したが、独立性を優先して案Bを採用。
+
+### 台風の扱い（厳守）
+台風は `get_typhoon` の結果に載っているものだけを書く。Web検索・過去記事から台風を足さない（消滅・温帯低気圧化した台風を書かない）。
+背景: 2026-10-10 の Slack まとめが、10/8 に温帯低気圧化済みの台風27号を現存するかのように書いた（実際は28・29号のみ）。
+
 ## 投稿の仕様
 
 - 3行構成・250字以内（Bluesky 上限300字。超過時はスクリプトが末尾を切る）
@@ -36,3 +48,5 @@ python3 bin/bsky_post.py --dry-run --text "テスト"                 # 投稿�
 
 - 2026-10-09: スクリプトと cron を作成（認証待ちで無効）
 - 2026-10-10: 3行・AI自動生成明記に変更、リンク先ページにも注記追加、試験投稿2回の後に有効化
+- 2026-10-10: 指示文に台風・津波・地震ツールと優先順位を追加（「台風情報なし」誤記の再発防止）。Slack との比較評価の結果
+- 2026-10-10: 「台風は get_typhoon の結果のみ」の制約を追加

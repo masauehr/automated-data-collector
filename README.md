@@ -51,3 +51,4 @@
 - 2026-08-30: モデルを Ollama から Anthropic（haiku/sonnet）へ移行、夕方配信を廃止、朝を 9:10 台へ変更、Web検索を SearXNG 化
 - 2026-10-10: README を実態に更新（cron 表・モデル・運用設定）
 - 2026-10-10: weather-jp-am / econ-jp-am のモデルが sonnet-5 に巻き戻っていたため haiku-4-5 に再設定（巻き戻り再発、原因未特定）
+- 2026-10-10: weather-jp-am / bsky-weather-am の指示文に「台風は get_typhoon の結果のみ」を追加（消滅済みの台風27号を現存と誤記したため）
