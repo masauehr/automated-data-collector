@@ -79,6 +79,17 @@ def main():
         # 超過時は末尾を「…」で切る（LLM要約が長すぎた場合の保険）
         text = text[: MAX_LEN - 1] + "…"
 
+    # 津波ガード: 本文の津波の記述が現在の状態（固定文）と一致しなければ投稿しない。
+    # ガードが読み込めない場合も投稿しない（安全側に倒す）
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import tsunami_guard
+        problems = tsunami_guard.check_text(text, tsunami_guard.current_state())
+    except Exception as e:
+        sys.exit(f"津波ガードを実行できないため投稿しません: {type(e).__name__}")
+    if problems:
+        sys.exit("津波ガード不合格のため投稿しません: " + " / ".join(problems))
+
     record = {
         "$type": "app.bsky.feed.post",
         "text": text,
