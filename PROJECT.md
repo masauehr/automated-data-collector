@@ -1,5 +1,7 @@
 # Automated Data Collector
 
+詳しくは [BLUESKY.md](BLUESKY.md)（Bluesky 投稿）・[COMPARE-A-B.md](COMPARE-A-B.md)（A/B比較）・[WORKLOG.md](WORKLOG.md)（作業記録）を参照。
+
 気象・経済・AI の情報を OpenClaw の cron で自動収集し、Slack と Bluesky に配信するプロジェクト。
 （2026-10-10 時点の実態に更新。`openclaw cron list --all` が正）
 
