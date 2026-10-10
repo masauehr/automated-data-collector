@@ -1,14 +1,21 @@
 # Automated Data Collector
 
-気象・経済・AI の情報を自動で収集し、Slack に配信するプロジェクト。
+気象・経済・AI の情報を OpenClaw の cron で自動収集し、Slack と Bluesky に配信するプロジェクト。
+（2026-10-10 時点の実態に更新。`openclaw cron list --all` が正）
 
 ## cron ジョブ
 
-| ジョブ | スケジュール | データ源 | 配信先 |
-|---|---|---|---|
-| weather-jp-2x | 毎日 9時・18時 JST | 気象庁 MCP + JSON API | Slack DM |
-| econ-daily-2x | 毎日 9時05分・18時05分 JST | Web検索 | Slack DM |
-| ai-weekly-digest | 毎週月曜 9時10分 JST | Web検索 | Slack DM |
+| ジョブ | スケジュール（JST） | データ源 | モデル | 配信先 |
+|---|---|---|---|---|
+| weather-jp-am | 毎日 9:10 | 気象庁 MCP + JSON API + Web検索 | `claude-sonnet-5` | Slack DM |
+| econ-jp-am | 毎日 9:13 | Web検索（日本株・為替・世界の経済指標/イベント） | `claude-sonnet-5` | Slack DM |
+| ai-weekly-digest | 毎週月曜 9:16 | Web検索 | `claude-haiku-4-5` | Slack DM |
+| bsky-weather-am | 毎日 9:25 | 気象庁 MCP → LLM要約 | `claude-haiku-4-5` | **Bluesky**（詳細: [BLUESKY.md](BLUESKY.md)） |
+
+- 夕方（18時台）の配信は 2026-08-30 に廃止。朝は他の自動実行（9:00 の株価・各種ダイジェスト等）を避けて 9:10 台に配置。
+- 共通設定: `--tz Asia/Tokyo --announce --expect-final --timeout-seconds 1200`（Bluesky のみ 600）、fallback は `claude-sonnet-5`（haiku ジョブ）。
+- `--model` は `agents.defaults.models` の allowlist 登録が必要。cron のモデルがまれに既定へ巻き戻る事象あり（要監視）。
+- 操作: `openclaw cron list --all|get <id>|edit <id>|run <id> --wait --expect-final|enable|disable|rm <id>`（`run` はフルIDが必要）。
 
 ## 気象庁データ源
 
@@ -27,14 +34,19 @@
 
 ## 運用設定
 
-- **モデル**: `ollama/ornith-1.5:35b`（ローカル）
-- **Anthropic**: allowlist 外のため使用不可
-- **Slack**: DM に配信（`slack:U0BTCCXRPJP`）
+- **モデル**: Anthropic（Claude Pro サブスクの `claude setup-token` 認証）。上表のとおり ジョブごとに指定。ローカルLLM（ornith/qwen3.6）は幻覚・中国語混入・遅延のため 2026-08-30 に断念
+- **Web検索**: 自己ホスト SearXNG（`127.0.0.1:18899`、launchd `local.searxng`）。キー不要
+- **Slack**: DM に配信（`slack:U0BTCCXRPJP`）。Bluesky は [BLUESKY.md](BLUESKY.md)
+- **稼働条件**: Mac 起動中のみ（スリープ・電源オフ中は実行されない）
 
 ## 変更履歴
+
 
 - 2026-08-29: プロジェクト開始
 - 2026-08-29: 気象庁 JSON API のエンドポイントを確認・追加
 - 2026-08-29: 気象 cron の指示を「気象庁 MCP 優先」に更新
 - 2026-08-29: 気象 cron の model を `ollama/ornith-1.5:35b` に修正
 - 2026-08-29: 3つの cron すべてテスト実行・ok 確認
+- 2026-10-10: Bluesky 自動投稿（bsky-weather-am）を追加
+- 2026-08-30: モデルを Ollama から Anthropic（haiku/sonnet）へ移行、夕方配信を廃止、朝を 9:10 台へ変更、Web検索を SearXNG 化
+- 2026-10-10: README を実態に更新（cron 表・モデル・運用設定）
