@@ -11,6 +11,20 @@
 | cron | `bsky-weather-am`（id `7c515a83-6054-432c-bd5b-fc35f3b4d960`） | 毎日 09:25 JST、haiku／fallback sonnet、結果は Slack DM にも返る |
 | リンク先 | https://masauehr.github.io/weather_chart_vlm/webui/index.html | 毎朝 8:45 JST に Mac から更新 |
 
+## 天気図VLM解説の参照とフォールバック（2026-10-10 追加）
+
+気圧配置・気圧の谷・雨域の根拠として、天気図VLM解説（`~/projects/weather_chart_vlm/webui/history/<今日>/data.json`）を参照する。
+理由: 独自取得だけだと奄美の雨（実際は気圧の谷による）の原因を取り違えるため。VLM は天気図を読んで原因まで書ける。
+
+`bin/vlm_status.py` が機械的に判定し JSON を返す（LLM に判定させない）:
+- **fail**（VLM なしで独自に書く）: 当日ファイルなし／日付が今日(JST)でない／確信度 0.5 未満／ガードレールに NG／JSON 読込失敗
+- **ok**（VLM を参照）: 上記以外。ガードレール「注意」の項目（前線・台風・気圧の谷など）は `cautions` に入り、その話題は VLM を根拠にせず気象庁MCPで裏取りする
+- 台風・警報・津波・地震は VLM に頼らず、常に気象庁MCP（`get_typhoon` 等）を正とする
+- 最終回答に使ったモード（VLMあり／VLMなし＋理由）を返し、Slack DM で後から確認できる
+
+実行コピー: `~/.openclaw/workspace/bin/vlm_status.py`（本リポジトリの `bin/` が正本）。
+注意: VLM の更新は 8:45 開始だが遅れる日がある（10/10 は 9:35 完了）。9:25 に間に合わなければ自動的に fail → 独自取得になる。
+
 ## 元データの取り方（案B: 独立取得）
 
 Slack のまとめ（weather-jp-am）は参照せず、Bluesky ジョブが気象庁MCPから自分で取得する。
@@ -51,3 +65,4 @@ python3 bin/bsky_post.py --dry-run --text "テスト"                 # 投稿�
 - 2026-10-10: 3行・AI自動生成明記に変更、リンク先ページにも注記追加、試験投稿2回の後に有効化
 - 2026-10-10: 指示文に台風・津波・地震ツールと優先順位を追加（「台風情報なし」誤記の再発防止）。Slack との比較評価の結果
 - 2026-10-10: 「台風は get_typhoon の結果のみ」の制約を追加
+- 2026-10-10: 天気図VLM解説の参照（失敗時は独自取得）を追加。`bin/vlm_status.py` 新設
