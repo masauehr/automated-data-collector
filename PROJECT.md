@@ -2,8 +2,40 @@
 
 cron の指示文・設定は [cron/](cron/README.md)（`bin/cron_sync.py` で git と同期）。詳しくは [BLUESKY.md](BLUESKY.md)（Bluesky 投稿）・[COMPARE-A-B.md](COMPARE-A-B.md)（A/B比較）・[WORKLOG.md](WORKLOG.md)（作業記録）を参照。
 
-気象・経済・AI の情報を OpenClaw の cron で自動収集し、Slack と Bluesky に配信するプロジェクト。
+気象・経済・AI の情報を自動で収集・要約し、Slack と Bluesky に配信する自動処理の運用リポジトリ。
 （2026-10-10 時点の実態に更新。`openclaw cron list --all` が正）
+
+**実行基盤は OpenClaw に限らない。** 始まりは OpenClaw の cron（Slack 配信、Bluesky A版）だったが、Bluesky 自動投稿は 2026-10-11 から **OpenClaw を使わない B版（launchd＋コード＋Claude Code CLI）が本番**になった。OpenClaw 上の cron（Slack のまとめ、Bluesky A版の内部比較）も継続している。
+
+### 重要な教訓: Claude Code と MCP ツールの活用
+- **開発・検証の中心は Claude Code**。気象庁MCPのツール（`get_typhoon` 等）を Claude Code から呼べたことで、OpenClaw 版の誤り（消滅済みの台風27号、「台風情報なし」、津波の言い過ぎ）を**権威あるデータと突き合わせて発見**できた。スクリプト・テスト・検証ルールも Claude Code で作った。
+- **B版の設計**: 事実の取得は MCP サーバー（jma_mcp）の関数をコードで直接呼び、LLM（`claude --print`、サブスク経由）は文章化だけを担当。取得→検証→投稿をコードで固定し、機械検証に落ちたら投稿しない。
+- **OpenClaw は MCP を登録して初めて同等に使える**。当初は MCP が1つも設定されておらず、指示文が「存在しないツール」を指していたことが A版失敗の主因だった（[COMPARE-A-B.md](COMPARE-A-B.md) の【訂正】）。2026-10-11 に `openclaw mcp add jma` で登録済み。
+- 使い分けの目安: 毎回同じ手順で確実に回したいもの・誤りが許されないもの（防災情報の投稿）は「コード＋Claude Code CLI＋MCP」、調べものや会話を伴う軽い配信（Slack のまとめ）は OpenClaw。
+
+## 関連リポジトリとの関係
+
+OpenClaw まわりは複数のリポジトリに分かれている。**本リポジトリは「自動処理（cron・投稿）の運用」を担当**する（OpenClaw 上で動くものと、OpenClaw を使わず launchd＋Claude Code CLI で動くものの両方）。
+
+| リポジトリ（場所） | 役割 | 本リポジトリとの関係 |
+|---|---|---|
+| **automated-data-collector**（本リポジトリ）`~/openclaw_prj/projects/automated-data-collector` | 運用中の自動処理: cron の指示文・設定（`cron/`）、Bluesky 自動投稿（B版本番・A版比較）、津波ガード等のスクリプト、作業記録 | — |
+| **openclaw_common**（親）`~/openclaw_prj` / `masauehr/openclaw_common` | OpenClaw 運用の統合管理: 共通ドキュメント `common/`、AIエージェントの作業規則 `SECURITY-POLICY.md`、`CHANGELOG.md` | 本リポジトリは親の `projects/` 配下に置かれるが、**独立した git リポジトリ**。親は `.gitignore` で除外し、二重管理しない（2026-10-11 整理）。親の `SECURITY-POLICY.md` は `openclaw_prj/` 以下のみ編集可と定めている |
+| **openclaw_setup** `~/projects/openclaw_setup` / `masauehr/openclaw_setup` | OpenClaw を Mac に**導入するまで**の作業記録（インストール、Slack 接続、設定、トラブル対処）と運用マニュアル `MANUAL.md` | 導入・基盤の話は setup、**導入後に動かす自動処理の変更は本リポジトリに記録**する（2026-10-11 方針）。`MANUAL.md` は `pc_docs` のコピー |
+| **pc_docs** `~/projects/pc_docs` | 手順書の集約（`manuals/automation/`）。`openclaw.md`・`bluesky-auto-post.md`・`sns-auto-post-options.md` | 本リポジトリの `BLUESKY.md` 等の写し。更新時は両方を直す |
+| **weather_chart_vlm** `~/projects/weather_chart_vlm` | 天気図・衛星のVLM解説（毎朝 8:45 更新、GitHub Pages） | Bluesky 投稿の**リンク先**であり、気圧配置の根拠として `history/<日付>/data.json` を読む（`bin/vlm_status.py`） |
+| **jma_mcp** `~/projects/jma_mcp` | 気象庁MCPサーバー | B版が関数を直接 import、OpenClaw にも MCP `jma` として登録（`openclaw/mcp-jma.json`） |
+
+OpenClaw 本体の設定・実行コピーは git 外の `~/.openclaw/`（`openclaw.json`、`workspace/bin/`）にあり、本リポジトリの `bin/deploy_workspace.sh` と `bin/cron_sync.py` で反映・同期する。B版の自動実行は launchd（`com.user.bsky_daily_b.plist`）。
+
+```
+openclaw_common (~/openclaw_prj)  共通ドキュメント・作業規則
+ └─ projects/automated-data-collector  ← 本リポジトリ（独立git）
+        │  cron定義 / 投稿スクリプト / 作業記録
+        ├─ 読む: weather_chart_vlm（VLM解説）, jma_mcp（気象庁MCP）
+        ├─ 反映先: ~/.openclaw（OpenClaw実機）, launchd
+        └─ 手順書の写し: pc_docs      導入の記録: openclaw_setup
+```
 
 ## cron ジョブ
 
@@ -60,3 +92,5 @@ cron の指示文・設定は [cron/](cron/README.md)（`bin/cron_sync.py` で g
 - 2026-10-11: OpenClaw に気象庁MCP `jma` を登録。weather-jp-am を MCP 利用に変更。A版を非公開の内部実行 `bsky-internal-a` として継続比較（[COMPARE-A-B.md](COMPARE-A-B.md)）
 - 2026-10-11: cron の指示文・設定を `cron/` に書き出して git 管理化（`bin/cron_sync.py` export/diff/apply）。MCP設定は `openclaw/mcp-jma.json`、`TOOLS.md` は `openclaw/workspace/`、実行コピーの反映は `bin/deploy_workspace.sh`。親の `openclaw_common` リポジトリでの二重管理を解消
 - 2026-10-11: 他SNS（Threads／Facebook／X）への自動投稿を検討し見送り。記録: [SNS-OPTIONS.md](SNS-OPTIONS.md)
+- 2026-10-11: README に関連リポジトリ（openclaw_common／openclaw_setup／pc_docs／weather_chart_vlm／jma_mcp）との関係を追加
+- 2026-10-11: README の位置づけを「OpenClaw 限定でなく、Claude Code＋MCP を中心とした自動処理の運用」に修正
