@@ -1,5 +1,7 @@
 # Bluesky 自動投稿
 
+> **2026-10-11 に本番を B版（launchd＋コード＋LLM）に切り替えた。** A版（OpenClaw cron `bsky-weather-am`）は同日朝にモデル応答の停止で4回連続失敗したため無効化（削除はせず残置）。以下の A版（OpenClaw）の記述は旧本番の仕様・経緯。B版の仕様は末尾の「B版（現行）」を参照。
+
 毎朝の気象要約を Bluesky に投稿する。天気図・衛星画像の解説ページ（weather_chart_vlm）へのリンクカード付き。
 
 ## 構成
@@ -86,3 +88,18 @@ python3 bin/bsky_post.py --dry-run --text "テスト"                 # 投稿�
 - 2026-10-10: 投稿時刻を 9:25 → 9:40 に変更（VLM 更新が遅れる日があるため）。VLM参照モードで試験投稿し、気圧の谷による雨を正しく反映することを確認。1段落になった問題に対し改行ルールを追加
 - 2026-10-10: 津波ガードを追加（固定文＋投稿前検査）。Slack まとめにも同規則を追加
 - 2026-10-10: VLM 出力から台風に触れる文を除外（台風は get_typhoon のみ）
+
+## B版（現行・2026-10-11〜）
+
+| 要素 | 内容 |
+|---|---|
+| 実行 | launchd `com.user.bsky_daily_b`、毎日 **9:40 JST**、`bsky_daily_b.py --post`（設定の正本: 本リポジトリの `com.user.bsky_daily_b.plist`） |
+| 事実の取得 | コードが `jma_mcp/server.py` の関数を直接呼ぶ（台風・地震・警報47府県・観測値）。津波は `tsunami_guard.py` の固定文 |
+| 文章化 | `claude --print --model claude-haiku-4-5`（サブスク経由）1回。機械検証に落ちたら指摘付きで1回だけ再生成 |
+| 投稿 | 検証・津波ガードに合格したときだけ `bsky_post.py` で投稿。不合格なら投稿しない（`shadow/<日付>_B.json` に `post_skipped`） |
+| 記録 | `shadow/YYYY-MM-DD_B.json`（本文・モード・トークン・問題・投稿結果）、ログ `shadow/launchd.log` |
+| 通知 | **なし**（失敗しても静かに終わる。要改善: Slack へ結果通知） |
+
+運用: `launchctl list | grep bsky_daily_b` ／ 手動実行 `/opt/homebrew/bin/python3 bin/bsky_daily_b.py [--post]` ／ 停止 `launchctl bootout gui/501/com.user.bsky_daily_b`
+A版に戻す場合: `openclaw cron enable 7c515a83-6054-432c-bd5b-fc35f3b4d960` と B版の停止（二重投稿を避ける）。
+- 2026-10-11: 本番を B版に切り替え（A版は無効化）。今日分は B版の手動実行で投稿

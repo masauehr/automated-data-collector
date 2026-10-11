@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-11",
+  "generated_at": "2026-10-11T11:07:59+09:00",
+  "mode": "VLMあり",
+  "model": "claude-haiku-4-5",
+  "tokens": 41951,
+  "sec_facts": 41.0,
+  "sec_llm": 38.0,
+  "text": "🤖AIによる自動生成｜10月11日、移動性高気圧で全国晴れ。九州南部～奄美は気圧の谷で弱い雨。\n全国的に晴天。明日も高気圧の勢力が強まり全国的に晴れ。関東甲信・北陸は時々曇り。\n台風29号（コグマ）が南鳥島近海で非常に強い。台風28号は12時間後に熱帯低気圧化の予報。",
+  "problems": [],
+  "retried": false,
+  "posted": true,
+  "real_typhoons": [
+    "28",
+    "29"
+  ],
+  "post_result": "投稿完了: at://did:plc:pepeccgo54idiy7dkpu4ix6i/app.bsky.feed.post/3mxkwakegsk2i"
+}
