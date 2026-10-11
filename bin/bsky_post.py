@@ -70,6 +70,7 @@ def main():
     ap.add_argument("--card-title", default="天気図・衛星画像のAI解説（気象庁データ）")
     ap.add_argument("--card-desc", default="AIが天気図・衛星画像を自動収集して解説する試み（自動生成・誤りを含む場合あり）")
     ap.add_argument("--dry-run", action="store_true", help="投稿せず内容だけ表示")
+    ap.add_argument("--shadow", metavar="ラベル", help="投稿せず shadow/<日付>_<ラベル>.json に本文と津波ガード結果を保存する（A/B比較用の非公開実行）")
     a = ap.parse_args()
 
     text = (a.text if a.text is not None else sys.stdin.read()).strip()
@@ -87,6 +88,15 @@ def main():
         problems = tsunami_guard.check_text(text, tsunami_guard.current_state())
     except Exception as e:
         sys.exit(f"津波ガードを実行できないため投稿しません: {type(e).__name__}")
+    if a.shadow:
+        import datetime as _dt
+        d = Path.home() / "openclaw_prj" / "projects" / "automated-data-collector" / "shadow"
+        d.mkdir(exist_ok=True)
+        day = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=9))).strftime("%Y-%m-%d")
+        rec = {"date": day, "label": a.shadow, "text": text, "tsunami_guard_problems": problems, "posted": False}
+        (d / f"{day}_{a.shadow}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2))
+        print(f"[shadow:{a.shadow}] 保存のみ（投稿しない） {len(text)}文字 津波ガード: {'不合格 ' + ' / '.join(problems) if problems else '合格'}")
+        return
     if problems:
         sys.exit("津波ガード不合格のため投稿しません: " + " / ".join(problems))
 

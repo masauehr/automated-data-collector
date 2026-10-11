@@ -12,7 +12,7 @@
 | weather-jp-am | 毎日 9:10 | 気象庁 MCP + JSON API + Web検索 | `claude-haiku-4-5` | Slack DM |
 | econ-jp-am | 毎日 9:13 | Web検索（日本株・為替・世界の経済指標/イベント） | `claude-haiku-4-5` | Slack DM |
 | ai-weekly-digest | 毎週月曜 9:16 | Web検索 | `claude-haiku-4-5` | Slack DM |
-| ~~bsky-weather-am~~（無効・2026-10-11〜） | 旧 毎日 9:40 | 気象庁 MCP + 天気図VLM解説 → LLM要約 | `claude-haiku-4-5` | Bluesky。**現行は launchd の B版**（[BLUESKY.md](BLUESKY.md)） |
+| `bsky-internal-a`（非公開・比較用 9:45。旧 ~~bsky-weather-am~~ は無効） | 旧 毎日 9:40 | 気象庁 MCP + 天気図VLM解説 → LLM要約 | `claude-haiku-4-5` | Bluesky。**現行は launchd の B版**（[BLUESKY.md](BLUESKY.md)） |
 
 - 夕方（18時台）の配信は 2026-08-30 に廃止。朝は他の自動実行（9:00 の株価・各種ダイジェスト等）を避けて 9:10 台に配置。
 - 共通設定: `--tz Asia/Tokyo --announce --expect-final --timeout-seconds 1200`（Bluesky のみ 600）、fallback は `claude-sonnet-5`（haiku ジョブ）。
@@ -57,3 +57,5 @@
 - 2026-10-10: bsky-weather-am が天気図VLM解説を参照（失敗時は独自取得）するよう変更（[BLUESKY.md](BLUESKY.md)）
 - 2026-10-10: Bluesky B版（コード+LLM）を launchd com.user.bsky_daily_b（毎日 9:41・シャドー）に登録。A/B比較は [COMPARE-A-B.md](COMPARE-A-B.md)
 - 2026-10-11: Bluesky 本番を B版（launchd com.user.bsky_daily_b・9:40・--post）に切り替え。A版 `bsky-weather-am` は無効化（モデル応答停止で4回連続失敗）
+- 2026-10-11: OpenClaw に気象庁MCP `jma` を登録。weather-jp-am を MCP 利用に変更。A版を非公開の内部実行 `bsky-internal-a` として継続比較（[COMPARE-A-B.md](COMPARE-A-B.md)）
+

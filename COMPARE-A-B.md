@@ -48,3 +48,14 @@ Mac が起動していないと走らない。A版と同じ日に比較できる
 - よって、A版の「台風情報なし」「存在しない27号」等の誤りの少なくとも一部は、**使えないツールを必須にした指示文が原因**であり、A版（OpenClaw）の本質的な限界とは言えない
 - 「model silent」の停止そのものが指示文の不備で起きたかは未確定（Anthropic側の停止の可能性も残る）。ただし、存在しないツールを探し回って長引く構成が停止に遭いやすかったのは確か
 - **上の比較（A: LLMがMCPを選んで呼ぶ）の前提は誤りだった**。公平な比較にするには、A版に気象庁ツールを与える必要がある（`openclaw mcp add` で jma_mcp を登録、または exec スクリプト）。B版を本番にした判断自体（安定して動く・機械検証できる）は有効だが、「A版がダメだった」という根拠としては弱い
+
+## 2026-10-11 再編: A版を「非公開の内部実行」にして継続比較
+
+ユーザー判断: **本番は B版を継続**。OpenClaw の MCP 不在を解消し、A版は**投稿しない内部実行**で B版と比べ続ける。
+
+- OpenClaw に気象庁MCPを登録: `openclaw mcp add jma`（`/opt/homebrew/bin/python3 ~/projects/jma_mcp/server.py`、14ツールに限定、**`get_tsunami_info` は除外**＝津波は `tsunami_guard.py` 経由）。ツールは `jma__get_typhoon` の名前で見える。`openclaw mcp doctor` ok。
+- A版 cron を作り直し: **`bsky-internal-a`**（id `348e8844-f81c-4898-9e6e-867720cd1347`、毎日 **9:45 JST**、haiku／fallback sonnet、配信なし `--no-deliver`）。`bsky_post.py --shadow A` で `shadow/<日付>_A.json` に保存するだけで、Bluesky にも Slack にも出さない。旧 `bsky-weather-am`（7c515a83…）は無効のまま残置。
+- 初回の内部実行: MCPツール6種を実際に呼んで 87秒で完走（以前は MCP が無く失敗）。**ただし指示違反あり**: 先頭が「🤖AIによる自動生成」でなく「🤖」のみ、台風29号を「12日昼に伊豆諸島」と書いた（`get_typhoon` の予報位置とは合わない）。→ 比較の対象（機械検査で捕捉）
+- 比較スクリプトを更新: `compare_bsky.py` は A・B とも `shadow/*.json` から読み、同じ機械検査を両方に適用して指摘数を合計表示。
+- Slack の気象まとめ（weather-jp-am）も MCP 利用に変更（ツール制限 `toolsAllow` を解除）。試験では `jma__get_typhoon` 等を呼び、台風は get_typhoon と一致。ただし `get_warning` を呼ばず警報に触れない、海外地震の規模が不一致（M7.6。津波情報は M8.0）などの課題あり。
+

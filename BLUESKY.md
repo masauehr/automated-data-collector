@@ -101,5 +101,6 @@ python3 bin/bsky_post.py --dry-run --text "テスト"                 # 投稿�
 | 通知 | **なし**（失敗しても静かに終わる。要改善: Slack へ結果通知） |
 
 運用: `launchctl list | grep bsky_daily_b` ／ 手動実行 `/opt/homebrew/bin/python3 bin/bsky_daily_b.py [--post]` ／ 停止 `launchctl bootout gui/501/com.user.bsky_daily_b`
-A版に戻す場合: `openclaw cron enable 7c515a83-6054-432c-bd5b-fc35f3b4d960` と B版の停止（二重投稿を避ける）。
+**A版（非公開の内部実行・比較用）**: OpenClaw cron `bsky-internal-a`（id `348e8844-f81c-4898-9e6e-867720cd1347`、毎日 9:45、`bsky_post.py --shadow A` で `shadow/<日付>_A.json` に保存するだけ。Bluesky・Slack には出さない）。OpenClaw には 2026-10-11 から気象庁MCP `jma` が登録済み（`jma__get_typhoon` 等）。比較: `python3 bin/compare_bsky.py`。
+旧 A版 cron `bsky-weather-am`（7c515a83…）は無効のまま残置。A版を本番に戻すなら、`bsky-weather-am` を enable し B版を停止（二重投稿を避ける）。
 - 2026-10-11: 本番を B版に切り替え（A版は無効化）。今日分は B版の手動実行で投稿

@@ -1,39 +1,27 @@
 #!/usr/bin/env python3
-"""A版（OpenClaw が実投稿）と B版（bsky_daily_b.py のシャドー出力）を並べて比較する。
+"""A版（OpenClaw 非公開の内部実行）と B版（launchd 本番）を並べて比較する。
 
 使い方: python3 compare_bsky.py [YYYY-MM-DD ...]   （省略時は shadow/ にある全日付）
-A版の本文は Bluesky の公開APIから、トークンは `openclaw cron runs` から取る。
-機械検証は B版のコードと同じ基準（台風番号の実在・3行・内部ID・AI明記・300字）をA版にも適用する。
+どちらも shadow/YYYY-MM-DD_{A,B}.json から読む。A版のトークンは `openclaw cron runs` から取る。
+機械検証は同じ基準を両方に適用する（台風番号の実在・3行・空行・内部ID・AI明記・「台風情報なし」の矛盾・
+津波ガード・VLM由来の台風記述の混入など）。意味の言い過ぎは人が見る。
 """
 import json
 import re
 import subprocess
 import sys
-import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-SHADOW = Path(__file__).resolve().parent.parent / "shadow"
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+SHADOW = HERE.parent / "shadow"
 JST = timezone(timedelta(hours=9))
-ACTOR = "uehr.bsky.social"
-CRON_ID = "7c515a83-6054-432c-bd5b-fc35f3b4d960"
-
-
-def a_posts(date):
-    """その日のA版投稿（🤖で始まるもの）を新しい順に返す"""
-    url = f"https://public.api.bsky.app/xrpc/app.bsky.feed.getAuthorFeed?actor={ACTOR}&limit=30&filter=posts_no_replies"
-    feed = json.load(urllib.request.urlopen(url, timeout=20))["feed"]
-    out = []
-    for f in feed:
-        r = f["post"]["record"]
-        t = datetime.fromisoformat(r["createdAt"].replace("Z", "+00:00")).astimezone(JST)
-        if t.strftime("%Y-%m-%d") == date and r["text"].startswith("🤖"):
-            out.append((t.strftime("%H:%M"), r["text"]))
-    return out
+A_CRON_ID = "348e8844-f81c-4898-9e6e-867720cd1347"  # bsky-internal-a（非公開の内部実行）
 
 
 def a_tokens():
-    o = subprocess.run(["openclaw", "cron", "runs", "--id", CRON_ID], capture_output=True, text=True).stdout
+    o = subprocess.run(["openclaw", "cron", "runs", "--id", A_CRON_ID], capture_output=True, text=True).stdout
     try:
         d = json.loads(o[o.find("{"):])
     except Exception:
@@ -41,7 +29,7 @@ def a_tokens():
     res = {}
     for e in d.get("entries", d.get("runs", [])):
         day = datetime.fromtimestamp(e["runAtMs"] / 1000, JST).strftime("%Y-%m-%d")
-        res.setdefault(day, []).append((e.get("usage") or {}).get("total_tokens"))
+        res.setdefault(day, []).append(((e.get("usage") or {}).get("total_tokens"), e.get("status")))
     return res
 
 
@@ -57,7 +45,9 @@ def check(text, real):
     if "\n\n" in text:
         pr.append("空行あり")
     if not text.startswith("🤖AIによる自動生成"):
-        pr.append("AI明記なし")
+        pr.append("先頭が『🤖AIによる自動生成』でない")
+    if len(text) > 300:
+        pr.append(f"300字超過({len(text)})")
     if "台風情報なし" in text and real:
         pr.append("台風があるのに『台風情報なし』")
     elif real and "台風" not in text:
@@ -65,19 +55,31 @@ def check(text, real):
     return pr
 
 
+def load(date, label):
+    f = SHADOW / f"{date}_{label}.json"
+    return json.loads(f.read_text()) if f.exists() else None
+
+
 def main():
-    dates = sys.argv[1:] or sorted(p.name[:10] for p in SHADOW.glob("*_B.json"))
+    dates = sys.argv[1:] or sorted({p.name[:10] for p in SHADOW.glob("*_[AB].json")})
     toks = a_tokens()
+    summary = {"A": 0, "B": 0}
     for date in dates:
-        b = json.loads((SHADOW / f"{date}_B.json").read_text())
-        real = set(b["real_typhoons"])
-        print(f"\n===== {date} =====")
-        for hhmm, text in a_posts(date):
-            pr = check(text, real)
-            print(f"[A OpenClaw {hhmm}] 問題: {pr or 'なし'} / トークン(当日の実行): {toks.get(date)}")
-            print(text)
-        print(f"\n[B コード+LLM] {b['mode']} / 問題: {b['problems'] or 'なし'} / トークン: {b['tokens']} / 取得{b['sec_facts']}s+LLM{b['sec_llm']}s")
-        print(b["text"])
+        a, b = load(date, "A"), load(date, "B")
+        real = set((b or {}).get("real_typhoons", []))  # 台風の正解は B版が取得した get_typhoon の結果
+        print(f"\n===== {date} =====  （実在する台風: {sorted(real) or '不明'}）")
+        for label, rec in (("A OpenClaw・非公開", a), ("B launchd・本番", b)):
+            if rec is None:
+                print(f"[{label}] 記録なし（実行されなかった／失敗）")
+                continue
+            pr = check(rec["text"], real) if real else ["（正解の台風が不明のため台風検査は省略）"]
+            pr += [f"津波ガード: {p}" for p in rec.get("tsunami_guard_problems", [])]
+            pr += rec.get("problems", []) if label.startswith("B") else []
+            extra = f"トークン {rec['tokens']}" if "tokens" in rec else f"トークン(当日の実行) {toks.get(date)}"
+            print(f"[{label}] 機械検査: {sorted(set(pr)) or 'OK'} / {extra} / {rec.get('mode', '')}")
+            print(rec["text"])
+            summary[label[0]] += len(set(pr))
+    print(f"\n機械検査の指摘数の合計  A: {summary['A']}  B: {summary['B']}  （意味の言い過ぎ・地名・数値は人が確認）")
 
 
 if __name__ == "__main__":
