@@ -59,3 +59,4 @@ cron の指示文・設定は [cron/](cron/README.md)（`bin/cron_sync.py` で g
 - 2026-10-11: Bluesky 本番を B版（launchd com.user.bsky_daily_b・9:40・--post）に切り替え。A版 `bsky-weather-am` は無効化（モデル応答停止で4回連続失敗）
 - 2026-10-11: OpenClaw に気象庁MCP `jma` を登録。weather-jp-am を MCP 利用に変更。A版を非公開の内部実行 `bsky-internal-a` として継続比較（[COMPARE-A-B.md](COMPARE-A-B.md)）
 - 2026-10-11: cron の指示文・設定を `cron/` に書き出して git 管理化（`bin/cron_sync.py` export/diff/apply）。MCP設定は `openclaw/mcp-jma.json`、`TOOLS.md` は `openclaw/workspace/`、実行コピーの反映は `bin/deploy_workspace.sh`。親の `openclaw_common` リポジトリでの二重管理を解消
+- 2026-10-11: 他SNS（Threads／Facebook／X）への自動投稿を検討し見送り。記録: [SNS-OPTIONS.md](SNS-OPTIONS.md)

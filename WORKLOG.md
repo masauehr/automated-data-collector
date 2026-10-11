@@ -27,6 +27,7 @@
 - **モデル方針（ユーザー判断）**: `econ-jp-am` は参考程度のため **haiku のまま**（sonnet には戻さない）。10/6〜10/10 は巻き戻りで実際は sonnet だった。haiku 初回（10/11）は米CPIの日付が抜け、数字が薄く矛盾あり＝その程度の品質として許容。`weather-jp-am` は haiku で様子見（指示強化は未決）、`ai-weekly-digest` は haiku で安定。
 - **weather-jp-am の指示強化**: 必須ツール（get_typhoon／get_earthquake_info／get_warning＋注目地域／get_early_warning／get_forecast／get_forecaster_comment／get_daily_ranking／get_record_update）を省略禁止、発表中の警報だけ、呼ばなかった分野を「特筆事項なし」と書かない、地震のMは get_earthquake_info の値、を追加（haiku 初回で get_warning を呼ばず警報に触れなかったため）。効果は数日の出力で点検。
 - **git管理の整理**: OpenClaw 側にしか無かった cron の指示文・設定を `cron/` に書き出し（`bin/cron_sync.py`）、MCP設定・TOOLS.md・デプロイスクリプトも追加。`~/openclaw_prj`（`openclaw_common`）が本リポジトリのファイルも重複追跡していたため、親側の追跡を外した（本リポジトリが唯一の正本）。
+- **他SNS（Threads／Facebook／X）の検討**: 見送り（ユーザー判断）。結果は [SNS-OPTIONS.md](SNS-OPTIONS.md)。
 - **未了**: A版の指示違反（先頭のAI明記なし）の扱い／`weather-jp-am` が警報を呼ばない件／B版の失敗通知（Slack）
 
 ---
