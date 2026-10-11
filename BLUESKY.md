@@ -1,6 +1,6 @@
 # Bluesky 自動投稿
 
-> **2026-10-11 に本番を B版（launchd＋コード＋LLM）に切り替えた。** A版（OpenClaw cron `bsky-weather-am`）は同日朝にモデル応答の停止で4回連続失敗したため無効化（削除はせず残置）。以下の A版（OpenClaw）の記述は旧本番の仕様・経緯。B版の仕様は末尾の「B版（現行）」を参照。
+> **2026-10-11 に本番を B版（launchd＋コード＋LLM）に切り替えた。** A版（OpenClaw cron `bsky-weather-am`）は同日朝に4回連続失敗したため無効化（主因は、OpenClaw に MCP が無いのに指示文が MCP ツールを必須にしていたこと。COMPARE-A-B.md の【訂正】参照）（削除はせず残置）。以下の A版（OpenClaw）の記述は旧本番の仕様・経緯。B版の仕様は末尾の「B版（現行）」を参照。
 
 毎朝の気象要約を Bluesky に投稿する。天気図・衛星画像の解説ページ（weather_chart_vlm）へのリンクカード付き。
 
