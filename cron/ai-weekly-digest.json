@@ -1,0 +1,20 @@
+{
+  "name": "ai-weekly-digest",
+  "description": "毎週月曜 朝9時 JST: AIダイジェスト",
+  "enabled": true,
+  "schedule": {
+    "expr": "16 9 * * 1",
+    "tz": "Asia/Tokyo"
+  },
+  "model": "anthropic/claude-haiku-4-5",
+  "fallbacks": [
+    "anthropic/claude-sonnet-5"
+  ],
+  "timeoutSeconds": 1200,
+  "delivery": {
+    "mode": "announce",
+    "channel": "slack",
+    "to": "slack:<OWNER>"
+  },
+  "id": "db8a0d0b-d9b1-484a-bf7f-6c3a4fcac496"
+}

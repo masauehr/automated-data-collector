@@ -1,0 +1,26 @@
+{
+  "command": "/opt/homebrew/bin/python3",
+  "args": [
+    "/Users/masahiro/projects/jma_mcp/server.py"
+  ],
+  "cwd": "/Users/masahiro/projects/jma_mcp",
+  "connectTimeout": 60,
+  "toolFilter": {
+    "include": [
+      "get_typhoon",
+      "get_warning",
+      "get_early_warning",
+      "get_forecast",
+      "get_forecaster_comment",
+      "get_earthquake_info",
+      "get_daily_ranking",
+      "get_mdrr_data",
+      "get_record_update",
+      "get_overview",
+      "get_information",
+      "get_weekly_forecast",
+      "get_warning_timeline",
+      "search_area"
+    ]
+  }
+}

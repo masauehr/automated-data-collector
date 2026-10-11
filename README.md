@@ -1,6 +1,6 @@
 # Automated Data Collector
 
-詳しくは [BLUESKY.md](BLUESKY.md)（Bluesky 投稿）・[COMPARE-A-B.md](COMPARE-A-B.md)（A/B比較）・[WORKLOG.md](WORKLOG.md)（作業記録）を参照。
+cron の指示文・設定は [cron/](cron/README.md)（`bin/cron_sync.py` で git と同期）。詳しくは [BLUESKY.md](BLUESKY.md)（Bluesky 投稿）・[COMPARE-A-B.md](COMPARE-A-B.md)（A/B比較）・[WORKLOG.md](WORKLOG.md)（作業記録）を参照。
 
 気象・経済・AI の情報を OpenClaw の cron で自動収集し、Slack と Bluesky に配信するプロジェクト。
 （2026-10-10 時点の実態に更新。`openclaw cron list --all` が正）
@@ -38,7 +38,7 @@
 
 - **モデル**: Anthropic（Claude Pro サブスクの `claude setup-token` 認証）。上表のとおり ジョブごとに指定。ローカルLLM（ornith/qwen3.6）は幻覚・中国語混入・遅延のため 2026-08-30 に断念
 - **Web検索**: 自己ホスト SearXNG（`127.0.0.1:18899`、launchd `local.searxng`）。キー不要
-- **Slack**: DM に配信（`slack:U0BTCCXRPJP`）。Bluesky は [BLUESKY.md](BLUESKY.md)
+- **Slack**: DM に配信（`slack:<OWNER>`）。Bluesky は [BLUESKY.md](BLUESKY.md)
 - **稼働条件**: Mac 起動中のみ（スリープ・電源オフ中は実行されない）
 
 ## 変更履歴
@@ -58,4 +58,4 @@
 - 2026-10-10: Bluesky B版（コード+LLM）を launchd com.user.bsky_daily_b（毎日 9:41・シャドー）に登録。A/B比較は [COMPARE-A-B.md](COMPARE-A-B.md)
 - 2026-10-11: Bluesky 本番を B版（launchd com.user.bsky_daily_b・9:40・--post）に切り替え。A版 `bsky-weather-am` は無効化（モデル応答停止で4回連続失敗）
 - 2026-10-11: OpenClaw に気象庁MCP `jma` を登録。weather-jp-am を MCP 利用に変更。A版を非公開の内部実行 `bsky-internal-a` として継続比較（[COMPARE-A-B.md](COMPARE-A-B.md)）
-
+- 2026-10-11: cron の指示文・設定を `cron/` に書き出して git 管理化（`bin/cron_sync.py` export/diff/apply）。MCP設定は `openclaw/mcp-jma.json`、`TOOLS.md` は `openclaw/workspace/`、実行コピーの反映は `bin/deploy_workspace.sh`。親の `openclaw_common` リポジトリでの二重管理を解消

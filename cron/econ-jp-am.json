@@ -1,0 +1,44 @@
+{
+  "name": "econ-jp-am",
+  "description": "毎日 朝9時・夕18時 JST: 日本株・世界経済指標",
+  "enabled": true,
+  "schedule": {
+    "expr": "13 9 * * *",
+    "tz": "Asia/Tokyo"
+  },
+  "model": "anthropic/claude-haiku-4-5",
+  "fallbacks": [
+    "anthropic/claude-sonnet-5"
+  ],
+  "timeoutSeconds": 1200,
+  "delivery": {
+    "mode": "announce",
+    "channel": "slack",
+    "to": "slack:<OWNER>"
+  },
+  "id": "b18e0f97-00a1-476e-be19-d449460d2eec",
+  "toolsAllow": [
+    "read",
+    "edit",
+    "write",
+    "apply_patch",
+    "exec",
+    "process",
+    "cron",
+    "get_goal",
+    "create_goal",
+    "update_goal",
+    "skill_workshop",
+    "update_plan",
+    "sessions_list",
+    "sessions_history",
+    "sessions_send",
+    "sessions_spawn",
+    "sessions_yield",
+    "subagents",
+    "session_status",
+    "web_search",
+    "web_fetch",
+    "image"
+  ]
+}

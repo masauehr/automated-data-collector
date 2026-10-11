@@ -1,0 +1,20 @@
+{
+  "name": "weather-jp-am",
+  "description": "毎日 朝9時・夕18時 JST: 日本の気象・防災",
+  "enabled": true,
+  "schedule": {
+    "expr": "10 9 * * *",
+    "tz": "Asia/Tokyo"
+  },
+  "model": "anthropic/claude-haiku-4-5",
+  "fallbacks": [
+    "anthropic/claude-sonnet-5"
+  ],
+  "timeoutSeconds": 1200,
+  "delivery": {
+    "mode": "announce",
+    "channel": "slack",
+    "to": "slack:<OWNER>"
+  },
+  "id": "445881d3-08ac-4260-819d-6ab807a3d23a"
+}

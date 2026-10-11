@@ -1,0 +1,20 @@
+{
+  "name": "bsky-internal-a",
+  "description": "非公開の内部実行(A版・比較用): 毎日09:45 JST。Blueskyには投稿せず shadow/<日付>_A.json に保存。Slack配信なし",
+  "enabled": true,
+  "schedule": {
+    "expr": "45 9 * * *",
+    "tz": "Asia/Tokyo"
+  },
+  "model": "anthropic/claude-haiku-4-5",
+  "fallbacks": [
+    "anthropic/claude-sonnet-5"
+  ],
+  "timeoutSeconds": 900,
+  "delivery": {
+    "mode": "none",
+    "channel": "last",
+    "to": ""
+  },
+  "id": "348e8844-f81c-4898-9e6e-867720cd1347"
+}

@@ -1,0 +1,20 @@
+{
+  "name": "bsky-weather-am",
+  "description": "非公開の内部実行(A版・比較用): 毎日09:45 JST。Blueskyには投稿せずshadow/<日付>_A.jsonに保存",
+  "enabled": false,
+  "schedule": {
+    "expr": "45 9 * * *",
+    "tz": "Asia/Tokyo"
+  },
+  "model": "anthropic/claude-haiku-4-5",
+  "fallbacks": [
+    "anthropic/claude-sonnet-5"
+  ],
+  "timeoutSeconds": 600,
+  "delivery": {
+    "mode": "announce",
+    "channel": null,
+    "to": ""
+  },
+  "id": "7c515a83-6054-432c-bd5b-fc35f3b4d960"
+}
