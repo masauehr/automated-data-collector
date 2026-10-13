@@ -44,6 +44,26 @@ async def gather_facts():
     out["tsunami"] = await jma._get_tsunami_info()
     out["quake_m4plus"] = await jma._get_earthquake_info(4, 5)
     out["ranking"] = (await jma._get_daily_ranking("", "mxtem"))[:900]
+    # 天気の主役を決める材料（VLMなしでも天気が書けるように常に取得する）
+    ov, cm, failed_ov = [], [], []
+    for label, code in OFFICES.items():
+        try:
+            o = await jma._get_overview(code)
+            c = await jma._get_forecaster_comment(code)
+        except Exception:
+            o = c = "エラー"
+        if o.startswith("エラー") and c.startswith("エラー"):
+            failed_ov.append(label)
+            continue
+        if not o.startswith("エラー"):
+            ov.append(f"■{label}\n" + _body(o)[:650])
+        if not c.startswith("エラー"):
+            cm.append(f"■{label}\n" + _body(c)[:520])
+    out["overview"] = "\n".join(ov) or "（取得できませんでした）"
+    out["comment"] = "\n".join(cm) or "（取得できませんでした）"
+    out["rain"] = _rain_sections(await jma._get_daily_ranking("", "pre1h"))
+    if failed_ov:
+        out["overview"] += f"\n※取得に失敗: {', '.join(failed_ov)}"
     # 警報（注意報は除く）: 全府県を回し、「■ 発表中」の区画にある警報だけを集める。
     # 解除通知・過去の発表履歴・暫定基準の注記は拾わない（拾うと「発表中」と誤解される）。
     warn, failed = [], []
@@ -71,39 +91,83 @@ async def gather_facts():
     return out
 
 
+# 天気概況・予報官コメントを取る官署（全国の主役と、沖縄・九州の雨を拾うため）
+OFFICES = {"北海道(札幌)": "016000", "関東(東京)": "130000", "近畿(大阪)": "270000", "九州北部(福岡)": "400000",
+           "九州南部(鹿児島)": "460100", "奄美": "460040", "沖縄本島": "471000"}
+
+
+def _body(txt):
+    """ツール出力から見出し・出典行を除いた本文だけにする"""
+    lines = [ln.strip() for ln in txt.splitlines() if ln.strip() and not ln.startswith("出典") and not ln.startswith("【")]
+    return "\n".join(lines)
+
+
+def _rain_sections(txt):
+    """降水量ランキングから降水の区画だけを抜き出す（上位のみ）"""
+    out, keep, n = [], False, 0
+    for ln in txt.splitlines():
+        if ln.startswith("■"):
+            keep, n = "降水" in ln, 0
+            if keep:
+                out.append(ln)
+            continue
+        if keep and ln.strip() and n < 6:
+            out.append(ln.rstrip())
+            n += 1
+    return "\n".join(out) or "（降水量ランキングを取得できませんでした）"
+
+
 def typhoon_numbers(text):
     """get_typhoon の結果に実在する台風番号"""
     return set(re.findall(r"台風(\d+)号", text))
 
 
 def build_prompt(facts, vlm):
-    vlm_part = "（VLMなし。気圧配置は他の情報から言える範囲に限る）" if vlm["status"] != "ok" else (
-        f"天気図VLM解説（気圧配置・気圧の谷・雨域の根拠。台風・警報は下の事実を優先）:\n"
-        f"型: {vlm['pattern']}\n今日: {vlm['today']}\n明日: {vlm['tomorrow']}\n気圧の谷: {json.dumps(vlm['troughs'], ensure_ascii=False)}\n"
-        f"VLMが突合しきれていない話題（根拠にしない）: {', '.join(vlm['cautions']) or 'なし'}")
+    if vlm["status"] != "ok":
+        vlm_part = "（VLMなし。気圧配置・雨域は【天気概況】【予報官コメント】から言える範囲に限る）"
+    else:
+        soft = ", ".join(vlm.get("soft_ng", [])) or "なし"
+        vlm_part = (f"天気図VLM解説（気圧配置・気圧の谷・雨域の根拠。台風・警報は他の事実を優先）:\n"
+                    f"型: {vlm['pattern']}\n今日: {vlm['today']}\n明日: {vlm['tomorrow']}\n気圧の谷: {json.dumps(vlm['troughs'], ensure_ascii=False)}\n"
+                    f"VLMが突合しきれていない話題（根拠にしない・他の情報で裏取り）: {', '.join(vlm['cautions']) or 'なし'}\n"
+                    f"VLMの実況突合でNGだった話題（降水・風などのVLMの記述は使わず、【降水ランキング】【予報官コメント】で裏取りする）: {soft}")
     return f"""以下の【取得済みの事実】だけを使い、Bluesky 投稿の本文を書いてください。
 
 【書式】日本語・3行（改行2回）・全体250字以内・1行80字以内
-1行目: 「🤖AIによる自動生成」で始め、日付と全国の天気概況（気圧配置）。気圧の谷などで雨の原因が分かれば短く書く
-2行目: 地域ごとの特徴と今日→明日の変化
-3行目: 注意点。優先順位は 台風 > 警報 > 大雨・高波・強風 > 地震（震度4以上）。該当なしなら「特に警戒すべき情報なし」。【津波には一切触れない】（津波の文はコードが別に付ける）
-- 台風は【台風情報】に載っているものだけ。表記は「台風29号（コグマ）」。いつ・どの地域に接近するか（離れるか）を書く
+1行目: 「🤖AIによる自動生成」で始め、日付と【今日の天気の主役】（全国の気圧配置・前線・気圧の谷）。【天気概況】【天気図VLM解説】を根拠にする
+2行目: 地域ごとの特徴と今日→明日の変化。雨・雷の地域（沖縄・奄美・九州の気圧の谷、前線が通過する地域など）は、原因と一緒に必ず入れる
+3行目: 注意点。優先順位は 発表中の警報 > 大雨・雷・高波・強風 > 台風 > 地震（震度4以上）。該当なしなら「特に警戒すべき情報なし」。【津波には一切触れない】（津波の文はコードが別に付ける）
+- 台風が存在するなら必ず1文入れる。【台風情報】に載っているものだけ。表記は「台風29号（コグマ）」。位置・進路と、日本への影響の有無（離れていくか、どの地域にいつ近づくか）を書く
+- 【台風の影響の書き方】本土から離れている・警報が出ていないときは「厳重警戒」「暴風」「猛烈」を使わない。影響は【予報官コメント】や警報に書かれた範囲（例: うねり・高波）に限る
+- 【風の表現】風の強弱は平均風速（10分間平均）で判断し、書く。最大瞬間風速（突風）で強弱を分類しない。瞬間風速に触れる場合は「瞬間風速」と明記する。気象庁の区分（平均風速）: やや強い風=10以上15未満m/s、強い風=15以上20未満、非常に強い風=20以上30未満、猛烈な風=30以上（10m/s未満に予報用語はない）。
+- 「大雨」は、大雨に関する警報・注意報が発表中、または1時間30mm以上の観測があるときだけ使う（「可能性は低い」程度の話を大雨注意と書かない）
+- 台風を先頭に置かない。天気の主役（高気圧・気圧の谷・前線）が先、台風は注意点として短く
 - ハッシュタグ・URL・内部IDは書かない。絵文字は🤖のほか最大1個。推測や数値の創作は禁止
 - 本文だけを出力する（前置き・説明・コードブロック不要）
 
 【台風情報】
 {facts['typhoon']}
 
+【天気概況（各官署）】
+{facts['overview']}
+
+【予報官コメント（警報等の可能性）】
+{facts['comment']}
+
+【降水ランキング（1時間降水量・上位）】
+{facts['rain']}
+
 【地震（震度4以上）】
 {facts['quake_m4plus']}
 
-【警報・特別警報】
+【警報・特別警報（発表中）】
 {facts['warnings']}
 
-【観測値ランキング（抜粋）】
+【観測値ランキング（最高気温・抜粋）】
 {facts['ranking']}
 
-【{vlm_part}
+【天気図VLM解説】
+{vlm_part}
 """
 
 
@@ -122,7 +186,7 @@ def call_claude(prompt):
     return (d.get("result") or "").strip(), tokens, time.monotonic() - t0
 
 
-def validate(text, facts):
+def validate(text, facts, vlm=None):
     """コードでの機械検証。問題の一覧を返す（空なら合格）"""
     problems = []
     real = typhoon_numbers(facts["typhoon"])
@@ -143,12 +207,55 @@ def validate(text, facts):
             problems.append(f"事実にない警報名: {w}")
     if "台風情報なし" in text and real:
         problems.append("台風があるのに『台風情報なし』")
+    problems += validate_tone(text, facts, vlm)
+    return problems
+
+
+def _max_rain_1h(rain_txt):
+    """降水ランキング抜粋の「1時間降水量」区画の最大値(mm)。取れなければ 0"""
+    mx, in_1h = 0.0, False
+    for ln in rain_txt.splitlines():
+        if ln.startswith("■"):
+            in_1h = "1時間" in ln
+            continue
+        m = re.search(r"\s(\d+(?:\.\d+)?)\s+\d{2}:\d{2}\s*$", ln)
+        if in_1h and m:
+            mx = max(mx, float(m.group(1)))
+    return mx
+
+
+# 事実に裏付けのない誇張表現を弾く。「厳重警戒」は警報が発表中のときだけ、「暴風」は暴風警報等があるときだけ許す
+HEAVY_WORDS = {"厳重警戒": "警報", "暴風": "暴風", "猛烈": "猛烈", "非常に危険": "警報"}
+RAIN_REGION_WORDS = ("気圧の谷", "沖縄", "奄美", "九州", "鹿児島", "トカラ", "南西諸島")
+
+
+def validate_tone(text, facts, vlm=None):
+    """内容のバランスの機械検査（誇張・要点のずれ）。2026-10-13 に台風へ引きずられた投稿が出たため追加"""
+    problems = []
+    warn = facts.get("warnings", "")
+    active = not warn.startswith("（警報・特別警報の発表中なし）")
+    for w, need in HEAVY_WORDS.items():
+        if w in text and not (active and need in warn):
+            problems.append(f"裏付けのない強い表現: 「{w}」（発表中の警報にその根拠がない）")
+    # 「大雨」は、大雨に関する警報・注意報が発表中か、1時間30mm以上の観測がある場合だけ（可能性が低い話の誇張を防ぐ）
+    if "大雨" in text and not ("大雨" in warn or _max_rain_1h(facts.get("rain", "")) >= 30):
+        problems.append("裏付けのない「大雨」（発表中の警報にも30mm/h以上の観測にもない）")
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    for i, ln in enumerate(lines, 1):
+        if len(ln) > 100:
+            problems.append(f"{i}行目が長すぎる({len(ln)}字。80字以内に要約する)")
+    if lines and "台風" in lines[0]:
+        problems.append("1行目が台風になっている（天気の主役を先に書く）")
+    # VLM が気圧の谷を指摘している日は、その雨域（気圧の谷／沖縄・九州付近）に触れること
+    if vlm and vlm.get("status") == "ok" and vlm.get("troughs") and not any(w in text for w in RAIN_REGION_WORDS):
+        problems.append("VLMが指摘した気圧の谷・沖縄/九州付近の雨に触れていない")
     return problems
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--post", action="store_true", help="実際に Bluesky へ投稿する（既定はシャドー）")
+    ap.add_argument("--label", default="B", help="保存ファイル名のラベル（試験時は B 以外にして本番の記録を上書きしない）")
     a = ap.parse_args()
 
     today = datetime.now(JST).strftime("%Y-%m-%d")
@@ -175,13 +282,13 @@ def main():
 
     norm = lambda t: "\n".join(ln.strip() for ln in t.splitlines() if ln.strip())
     text = add_tsunami(norm(text))
-    problems = validate(text, facts) + tsunami_guard.check_text(text, tstate)
+    problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
     retried = bool(problems)
     if problems:  # 機械検証に落ちたら、指摘を添えて1回だけ再生成
         text2, tk2, t2 = call_claude(prompt + "\n\n【前回の出力の問題。直して出力し直す】\n- " + "\n- ".join(problems) + "\n前回の出力:\n" + text)
         tokens, t_llm = tokens + tk2, t_llm + t2
         text = add_tsunami(norm(text2))
-        problems = validate(text, facts) + tsunami_guard.check_text(text, tstate)
+        problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
 
     rec = {
         "date": today, "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
@@ -198,7 +305,7 @@ def main():
             rec["posted"] = r.returncode == 0
             rec["post_result"] = (r.stdout or r.stderr).strip()[:200]
     SHADOW.mkdir(exist_ok=True)
-    (SHADOW / f"{today}_B.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2))
+    (SHADOW / f"{today}_{a.label}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2))
     print(json.dumps(rec, ensure_ascii=False, indent=2))
 
 

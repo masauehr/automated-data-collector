@@ -23,5 +23,30 @@ class TestStripTyphoon(unittest.TestCase):
         self.assertIsNone(v.strip_typhoon(None))
 
 
+class TestNgHandling(unittest.TestCase):
+    def _run(self, checks):
+        import json, tempfile
+        from datetime import datetime, timedelta, timezone
+        today = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d")
+        t = Path(tempfile.mkdtemp()); (t / today).mkdir()
+        d = {"date": today, "confidence": 0.7, "pattern": "移動性高気圧", "general": {"today": "晴れ。", "tomorrow": "曇り。"},
+             "guardrail_checks": checks}
+        (t / today / "data.json").write_text(json.dumps(d))
+        old, v.ROOT = v.ROOT, t
+        try:
+            return v.main()
+        finally:
+            v.ROOT = old
+
+    def test_rain_ng_is_soft(self):
+        r = self._run([{"verdict": "NG", "label": "実況突合:降水"}])
+        self.assertEqual(r["status"], "ok")
+        self.assertEqual(r["soft_ng"], ["実況突合:降水"])
+
+    def test_label_and_season_ng_are_fatal(self):
+        for label in ("ラベル許可リスト", "季節整合"):
+            self.assertEqual(self._run([{"verdict": "NG", "label": label}])["status"], "fail")
+
+
 if __name__ == "__main__":
     unittest.main()

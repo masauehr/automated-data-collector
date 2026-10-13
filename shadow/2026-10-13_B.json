@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-13",
+  "generated_at": "2026-10-13T09:40:54+09:00",
+  "mode": "VLMなし(ガードレールNG: 実況突合:降水)",
+  "model": "claude-haiku-4-5",
+  "tokens": 30691,
+  "sec_facts": 15.9,
+  "sec_llm": 33.1,
+  "text": "🤖AIによる自動生成|10月13日、日本の東に台風29号（コグマ）。気圧975hPa、北東方向へ進行中。\n沖縄は28℃台の高温、北海道は3℃台の低温。気圧配置の変化で全国的に気象が変わる見込み。\n⚠️台風29号は14日6時に関東南東沖付近、15日3時に温帯低気圧化予報。暴風と高波に厳重警戒。",
+  "problems": [],
+  "retried": false,
+  "posted": true,
+  "real_typhoons": [
+    "29"
+  ],
+  "post_result": "投稿完了: at://did:plc:pepeccgo54idiy7dkpu4ix6i/app.bsky.feed.post/3mxpscpdi662k"
+}

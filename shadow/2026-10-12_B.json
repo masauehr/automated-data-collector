@@ -1,0 +1,18 @@
+{
+  "date": "2026-10-12",
+  "generated_at": "2026-10-12T10:19:07+09:00",
+  "mode": "VLMなし(当日分のファイルがない（2026-10-12）)",
+  "model": "claude-haiku-4-5",
+  "tokens": 57052,
+  "sec_facts": 82.8,
+  "sec_llm": 65.9,
+  "text": "🤖AIによる自動生成　10月12日　日本の東に非常に強い台風29号あり。気圧の谷が進む。\n台風29号（コグマ）は小笠原近海から北上中。13日朝に関東南方接近し、14日に温帯低気圧に変わりながら東北方面へ進む。\n台風29号（コグマ）の動向に警戒。強風・高波に注意し、今後の情報確認を。",
+  "problems": [],
+  "retried": false,
+  "posted": true,
+  "real_typhoons": [
+    "28",
+    "29"
+  ],
+  "post_result": "投稿完了: at://did:plc:pepeccgo54idiy7dkpu4ix6i/app.bsky.feed.post/3mxndy4yupm24"
+}

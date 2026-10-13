@@ -3,8 +3,8 @@
 
 Bluesky 投稿 cron が「VLM を参照し、失敗していたら独自に書く」ために使う。
 判定は機械的に行う（LLM に任せない）:
-  fail: ファイルなし／日付が今日(JST)でない／確信度 0.5 未満／ガードレールに NG／JSON 読込失敗
-  ok  : 上記以外（台風に触れる文は today/tomorrow から除外する）。ガードレールが「注意」の項目は cautions に入れる（その話題は VLM を根拠にしない）
+  fail: ファイルなし／日付が今日(JST)でない／確信度 0.5 未満／致命的なガードレールNG（ラベル許可リスト・季節整合）／JSON 読込失敗
+  ok  : 上記以外（台風に触れる文は today/tomorrow から除外する）。ガードレールが「注意」の項目は cautions、軽いNG（降水・風の実況突合など）は soft_ng に入れる（その話題は VLM を根拠にしない）
 """
 import json
 import re
@@ -12,6 +12,10 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# 気圧配置の判定そのものが怪しいときだけ VLM 全体を不採用にする。
+# それ以外の NG（降水・風の実況突合、数値引用など）は「その話題を根拠にしない」注意扱いにして、VLM は採用する
+# （降水の主張だけ食い違っても、気圧配置や気圧の谷の解説は有用なため。2026-10-13 に全捨てで要点が欠けた）
+FATAL_NG = ("ラベル許可リスト", "季節整合")
 ROOT = Path.home() / "projects" / "weather_chart_vlm" / "webui" / "history"
 MIN_CONFIDENCE = 0.5
 
@@ -45,8 +49,10 @@ def main():
         return {"status": "fail", "reason": f"確信度が低い・不明（{conf}）"}
     checks = d.get("guardrail_checks", [])
     ng = [g.get("label") for g in checks if g.get("verdict") == "NG"]
-    if ng:
-        return {"status": "fail", "reason": f"ガードレールNG: {', '.join(map(str, ng))}"}
+    fatal = [x for x in ng if any(str(x).startswith(f) for f in FATAL_NG)]
+    if fatal:
+        return {"status": "fail", "reason": f"ガードレールNG(致命的): {', '.join(map(str, fatal))}"}
+    soft_ng = [x for x in ng if x not in fatal]
 
     g = d.get("general", {})
     return {
@@ -62,6 +68,8 @@ def main():
         "troughs": d.get("troughs"),
         # 「注意」の項目＝VLMの記述が気象庁データと突合しきれていない話題
         "cautions": [g_.get("label") for g_ in checks if g_.get("verdict") == "注意"],
+        # 軽い NG: その話題（例: 降水・風）の VLM の記述は根拠にせず、他の情報で裏取りする
+        "soft_ng": soft_ng,
     }
 
 
