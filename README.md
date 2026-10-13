@@ -94,3 +94,5 @@ openclaw_common (~/openclaw_prj)  共通ドキュメント・作業規則
 - 2026-10-11: 他SNS（Threads／Facebook／X）への自動投稿を検討し見送り。記録: [SNS-OPTIONS.md](SNS-OPTIONS.md)
 - 2026-10-11: README に関連リポジトリ（openclaw_common／openclaw_setup／pc_docs／weather_chart_vlm／jma_mcp）との関係を追加
 - 2026-10-11: README の位置づけを「OpenClaw 限定でなく、Claude Code＋MCP を中心とした自動処理の運用」に修正
+- 2026-10-13: B版を改善（VLM の NG を致命的/軽いに分離、天気概況・予報官コメント・降水ランキングを取得、台風の誇張・「大雨」・気圧の谷への言及・行の長さの機械検査 `validate_tone`）。風は平均風速で判断するルールを追加。テスト30件（`/opt/homebrew/bin/python3 -m unittest discover -s tests`）。10/11〜13 の A/B 観察は [COMPARE-A-B.md](COMPARE-A-B.md)。未了: VLM が 9:40 に間に合わない日の扱い、`wind_now` の境界を気象庁の区切りに合わせるか
+
