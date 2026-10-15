@@ -66,7 +66,7 @@ async def gather_facts():
         out["overview"] += f"\n※取得に失敗: {', '.join(failed_ov)}"
     # 警報（注意報は除く）: 全府県を回し、「■ 発表中」の区画にある警報だけを集める。
     # 解除通知・過去の発表履歴・暫定基準の注記は拾わない（拾うと「発表中」と誤解される）。
-    warn, failed = [], []
+    warn, failed, raw = [], [], {}
     for code, name in AREA_CODE_MAP.items():
         try:
             txt = await jma._get_warning(code)
@@ -85,15 +85,48 @@ async def gather_facts():
                 active.append(ln)
         if active:
             warn.append(f"{name}: " + " / ".join(active[:4]))
+            raw[name] = txt  # 後から検証できるよう、警報のある地域の取得原文を残す
     out["warnings"] = "\n".join(warn) if warn else "（警報・特別警報の発表中なし）"
     if failed:
         out["warnings"] += f"\n※取得に失敗した地域（警報の有無は不明。『なし』と書かない）: {', '.join(failed)}"
+    out["warnings_raw"] = raw
+    out["facts_at"] = datetime.now(JST).strftime("%H:%M")  # 警報取得の完了時刻（投稿の「○時点」に使う）
+    # 今日の降水確率（地域キーワードと突き合わせて「雨」表記を検査するため）
+    out["pop"] = {}
+    for code in sorted({c for codes in POP_REGIONS.values() for c in codes}):
+        try:
+            out["pop"][code] = _today_pop(await jma._get_forecast(code))
+        except Exception:
+            out["pop"][code] = None
     return out
 
 
 # 天気概況・予報官コメントを取る官署（全国の主役と、沖縄・九州の雨を拾うため）
 OFFICES = {"北海道(札幌)": "016000", "関東(東京)": "130000", "近畿(大阪)": "270000", "九州北部(福岡)": "400000",
            "九州南部(鹿児島)": "460100", "奄美": "460040", "沖縄本島": "471000"}
+
+
+# 「雨」と書いてよいか検査する地域。キーワードは上から順に最初に合致したものだけを使う（「沖縄先島」は先島として判定）
+POP_REGIONS = {
+    "先島": ("473000", "474000"), "八重山": ("474000",), "宮古": ("473000",), "大東": ("472000",),
+    "沖縄": ("471000",), "奄美": ("460040",), "九州南部": ("460100",), "鹿児島": ("460100",),
+    "九州": ("400000", "460100"), "関東": ("130000",), "近畿": ("270000",),
+    "北海道": ("011000", "012000", "016000"),
+}
+POP_LIMIT = 50  # 今日の降水確率（最大）がこれ未満なら卓越雨ではないので「雨」と書かない（%）
+
+
+def _today_pop(txt):
+    """get_forecast の結果から、今日の降水確率の最大値(%)。取れなければ None"""
+    in_pop = False
+    for ln in txt.splitlines():
+        if ln.startswith("■"):
+            in_pop = "降水確率" in ln
+            continue
+        if in_pop and ln.strip():
+            v = [int(x) for x in re.findall(r"(\d+)%", ln)]
+            return max(v) if v else None  # 最初の日付行が今日
+    return None
 
 
 def _body(txt):
@@ -141,6 +174,7 @@ def build_prompt(facts, vlm):
 - 【台風の影響の書き方】本土から離れている・警報が出ていないときは「厳重警戒」「暴風」「猛烈」を使わない。影響は【予報官コメント】や警報に書かれた範囲（例: うねり・高波）に限る
 - 【風の表現】風の強弱は平均風速（10分間平均）で判断し、書く。最大瞬間風速（突風）で強弱を分類しない。瞬間風速に触れる場合は「瞬間風速」と明記する。気象庁の区分（平均風速）: やや強い風=10以上15未満m/s、強い風=15以上20未満、非常に強い風=20以上30未満、猛烈な風=30以上（10m/s未満に予報用語はない）。
 - 「大雨」は、大雨に関する警報・注意報が発表中、または1時間30mm以上の観測があるときだけ使う（「可能性は低い」程度の話を大雨注意と書かない）
+- 【概況・予報官コメントに「明日」以降の記述がある場合、それを今日のこととして書かない】
 - 台風を先頭に置かない。天気の主役（高気圧・気圧の谷・前線）が先、台風は注意点として短く
 - ハッシュタグ・URL・内部IDは書かない。絵文字は🤖のほか最大1個。推測や数値の創作は禁止
 - 本文だけを出力する（前置き・説明・コードブロック不要）
@@ -208,6 +242,7 @@ def validate(text, facts, vlm=None):
     if "台風情報なし" in text and real:
         problems.append("台風があるのに『台風情報なし』")
     problems += validate_tone(text, facts, vlm)
+    problems += validate_rain_pop(text, facts)
     return problems
 
 
@@ -252,6 +287,27 @@ def validate_tone(text, facts, vlm=None):
     return problems
 
 
+def validate_rain_pop(text, facts):
+    """今日の降水確率が50%未満の地域に「雨」を書いていないか。明日・明後日の文は今日の確率で判定できないので対象外"""
+    problems, pop = [], facts.get("pop") or {}
+    today_d = datetime.now(JST).day
+
+    def other_day(c):  # 「16日」のように今日以外の日付が書かれた文
+        return any(int(d) != today_d for d in re.findall(r"(\d{1,2})日", c))
+
+    for clause in re.split(r"[。、\n]", text):
+        if "雨" not in clause or re.search(r"明日|明後日|あす|あさって", clause) or other_day(clause) or re.search(r"雨(は|の心配)?(なし|ない|降らない)", clause):
+            continue
+        for kw, codes in POP_REGIONS.items():
+            if kw not in clause:
+                continue
+            vals = [pop[c] for c in codes if pop.get(c) is not None]
+            if vals and max(vals) < POP_LIMIT:
+                problems.append(f"{kw}の今日の降水確率が最大{max(vals)}%（{POP_LIMIT}%未満）なのに雨と書いている: 「{clause.strip()}」")
+            break
+    return problems
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--post", action="store_true", help="実際に Bluesky へ投稿する（既定はシャドー）")
@@ -281,13 +337,23 @@ def main():
         return "\n".join(ls)
 
     norm = lambda t: "\n".join(ln.strip() for ln in t.splitlines() if ln.strip())
-    text = add_tsunami(norm(text))
+    asof = facts["facts_at"].lstrip("0") + "時点"  # 例: 9:40時点（警報は数分で切り替わるため、いつの情報かを明記する）
+    raw_warnings = facts.pop("warnings_raw")
+
+    def add_asof(t):
+        """3行目の先頭に取得時刻を入れる（コード側で保証。LLMには任せない）"""
+        ls = t.splitlines()
+        if len(ls) == 3:
+            ls[2] = f"（{asof}）{ls[2]}"
+        return "\n".join(ls)
+
+    text = add_tsunami(add_asof(norm(text)))
     problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
     retried = bool(problems)
     if problems:  # 機械検証に落ちたら、指摘を添えて1回だけ再生成
         text2, tk2, t2 = call_claude(prompt + "\n\n【前回の出力の問題。直して出力し直す】\n- " + "\n- ".join(problems) + "\n前回の出力:\n" + text)
         tokens, t_llm = tokens + tk2, t_llm + t2
-        text = add_tsunami(norm(text2))
+        text = add_tsunami(add_asof(norm(text2)))
         problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
 
     rec = {
@@ -296,6 +362,8 @@ def main():
         "model": MODEL, "tokens": tokens, "sec_facts": round(t_facts, 1), "sec_llm": round(t_llm, 1),
         "text": text, "problems": problems, "retried": retried, "posted": False,
         "real_typhoons": sorted(typhoon_numbers(facts["typhoon"])),
+        # 後から検証できるよう、投稿時点の事実を残す
+        "facts_at": facts["facts_at"], "warnings": facts["warnings"], "warnings_raw": raw_warnings, "pop": facts["pop"],
     }
     if a.post:
         if problems:

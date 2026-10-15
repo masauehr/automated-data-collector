@@ -65,3 +65,36 @@ class TestParsers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRainPop(unittest.TestCase):
+    fc = "■ 天気\n  10月15日(木): 晴れ\n■ 降水確率\n  10月15日(木): 12-18h:10% 18-24h:20%\n  10月16日(金): 0-6h:70%\n"
+
+    def test_today_pop_takes_first_day_max(self):
+        self.assertEqual(b._today_pop(self.fc), 20)
+        self.assertIsNone(b._today_pop("■ 天気\n  晴れ"))
+
+    def test_low_pop_rain_rejected(self):
+        f = {"pop": {"473000": 10, "474000": 10}}
+        self.assertTrue(b.validate_rain_pop("🤖x\n沖縄先島は湿った空気で雨\ny", f))
+
+    def test_high_pop_ok(self):
+        f = {"pop": {"473000": 60, "474000": 10}}
+        self.assertEqual(b.validate_rain_pop("🤖x\n先島は雨\ny", f), [])
+
+    def test_tomorrow_and_unknown_are_skipped(self):
+        f = {"pop": {"473000": 10, "474000": 10}}
+        self.assertEqual(b.validate_rain_pop("🤖x\n先島は明日雨\ny", f), [])
+        self.assertEqual(b.validate_rain_pop("🤖x\n先島は雨\ny", {"pop": {"473000": None, "474000": None}}), [])
+        self.assertEqual(b.validate_rain_pop("🤖x\n先島は雨\ny", {}), [])
+
+    def test_sakishima_uses_its_own_pop_not_okinawa(self):
+        f = {"pop": {"471000": 80, "473000": 10, "474000": 10}}
+        self.assertTrue(b.validate_rain_pop("🤖x\n沖縄先島は雨\ny", f))
+
+    def test_other_date_clause_skipped(self):
+        from datetime import datetime
+        f = {"pop": {"011000": 10, "012000": 10, "016000": 10}}
+        d = (b.datetime.now(b.JST).day % 28) + 1  # 今日と別の日
+        self.assertEqual(b.validate_rain_pop(f"🤖x\n{d}日は北海道で一時雨\ny", f), [])
+        self.assertTrue(b.validate_rain_pop(f"🤖x\n{b.datetime.now(b.JST).day}日は北海道で雨\ny", f))
