@@ -95,4 +95,5 @@ openclaw_common (~/openclaw_prj)  共通ドキュメント・作業規則
 - 2026-10-11: README に関連リポジトリ（openclaw_common／openclaw_setup／pc_docs／weather_chart_vlm／jma_mcp）との関係を追加
 - 2026-10-11: README の位置づけを「OpenClaw 限定でなく、Claude Code＋MCP を中心とした自動処理の運用」に修正
 - 2026-10-13: B版を改善（VLM の NG を致命的/軽いに分離、天気概況・予報官コメント・降水ランキングを取得、台風の誇張・「大雨」・気圧の谷への言及・行の長さの機械検査 `validate_tone`）。風は平均風速で判断するルールを追加。テスト30件（`/opt/homebrew/bin/python3 -m unittest discover -s tests`）。10/11〜13 の A/B 観察は [COMPARE-A-B.md](COMPARE-A-B.md)。VLM が 9:40 に間に合わない日は待たず「VLMなし」で書く（決定済み）。VLM の `wind_now` の区切りは気象庁の表（10/20m/s）に合わせ済み
+- 2026-10-15: 先島の雨の誤り（16日の概況を今日と取り違え）を受けて修正。プロンプトに「明日以降の記述を今日として書かない」を追加、今日の降水確率が50%未満の地域の「雨」表記を弾く検査 `validate_rain_pop`、3行目の先頭に「（H:MM時点）」を付与、警報の原文・降水確率を `shadow/*.json` に保存。熱帯低気圧が「台風a号」と出る問題は `fix_td_name` と検査で「熱帯低気圧」に修正。テスト39件。詳細は [BLUESKY.md](BLUESKY.md) 末尾
 
