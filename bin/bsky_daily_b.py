@@ -40,7 +40,7 @@ import tsunami_guard  # noqa: E402
 async def gather_facts():
     """事実の取得（LLMは介在しない）"""
     out = {}
-    out["typhoon"] = await jma._get_typhoon()
+    out["typhoon"] = fix_td_name(await jma._get_typhoon())
     out["tsunami"] = await jma._get_tsunami_info()
     out["quake_m4plus"] = await jma._get_earthquake_info(4, 5)
     out["ranking"] = (await jma._get_daily_ranking("", "mxtem"))[:900]
@@ -150,6 +150,11 @@ def _rain_sections(txt):
     return "\n".join(out) or "（降水量ランキングを取得できませんでした）"
 
 
+def fix_td_name(text):
+    """気象庁MCPは台風になる前の熱帯低気圧を「台風a号」と出力する。台風ではないので「熱帯低気圧」に直す"""
+    return re.sub(r"台風[a-zA-Z]号", "熱帯低気圧", text)
+
+
 def typhoon_numbers(text):
     """get_typhoon の結果に実在する台風番号"""
     return set(re.findall(r"台風(\d+)号", text))
@@ -227,6 +232,8 @@ def validate(text, facts, vlm=None):
     for n in typhoon_numbers(text):
         if n not in real:
             problems.append(f"存在しない台風: {n}号")
+    if re.search(r"台風[a-zA-Z]号", text):
+        problems.append("熱帯低気圧を「台風a号」と書いている（台風ではないので『熱帯低気圧』と書く）")
     if re.search(r"台風\d{4}|TC\d{4}|\b\d{4}号", text):
         problems.append("台風の内部IDらしき表記")
     if len([ln for ln in text.splitlines() if ln.strip()]) != 3:
@@ -298,13 +305,16 @@ def validate_rain_pop(text, facts):
     for clause in re.split(r"[。、\n]", text):
         if "雨" not in clause or re.search(r"明日|明後日|あす|あさって", clause) or other_day(clause) or re.search(r"雨(は|の心配)?(なし|ない|降らない)", clause):
             continue
-        for kw, codes in POP_REGIONS.items():
-            if kw not in clause:
-                continue
-            vals = [pop[c] for c in codes if pop.get(c) is not None]
+        # 「雨」の直前にいちばん近い地域名をその雨の地域とする（「北海道の雷雨と先島の高波」の先島を雨扱いしない）
+        hit = set()
+        for m in re.finditer("雨", clause):
+            near = [(clause.rfind(kw, 0, m.start()), len(kw), kw) for kw in POP_REGIONS if kw in clause[:m.start()]]
+            if near:
+                hit.add(max(near)[2])  # 位置が後ろ→長い名前の順
+        for kw in hit:
+            vals = [pop[c] for c in POP_REGIONS[kw] if pop.get(c) is not None]
             if vals and max(vals) < POP_LIMIT:
                 problems.append(f"{kw}の今日の降水確率が最大{max(vals)}%（{POP_LIMIT}%未満）なのに雨と書いている: 「{clause.strip()}」")
-            break
     return problems
 
 

@@ -98,3 +98,17 @@ class TestRainPop(unittest.TestCase):
         d = (b.datetime.now(b.JST).day % 28) + 1  # 今日と別の日
         self.assertEqual(b.validate_rain_pop(f"🤖x\n{d}日は北海道で一時雨\ny", f), [])
         self.assertTrue(b.validate_rain_pop(f"🤖x\n{b.datetime.now(b.JST).day}日は北海道で雨\ny", f))
+
+
+class TestTropicalDepression(unittest.TestCase):
+    def test_fix_td_name(self):
+        self.assertEqual(b.fix_td_name("■ 台風a号　発表\n実況: 熱帯低気圧"), "■ 熱帯低気圧　発表\n実況: 熱帯低気圧")
+        self.assertEqual(b.fix_td_name("台風29号（コグマ）"), "台風29号（コグマ）")
+
+    def test_td_written_as_typhoon_rejected(self):
+        self.assertTrue(any("熱帯低気圧" in x for x in b.validate("🤖x\ny\n台風a号は日本に影響なし", {"typhoon": "熱帯低気圧", "warnings": "（警報・特別警報の発表中なし）"})))
+
+    def test_rain_belongs_to_nearest_region(self):
+        f = {"pop": {"011000": 80, "012000": 80, "016000": 80, "473000": 10, "474000": 10}}
+        self.assertEqual(b.validate_rain_pop("🤖x\n北海道の雷雨と先島の高波に注意\ny", f), [])
+        self.assertTrue(b.validate_rain_pop("🤖x\n北海道は晴れ、先島は雨\ny", f))
