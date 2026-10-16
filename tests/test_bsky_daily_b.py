@@ -92,6 +92,13 @@ class TestRainPop(unittest.TestCase):
         f = {"pop": {"471000": 80, "473000": 10, "474000": 10}}
         self.assertTrue(b.validate_rain_pop("🤖x\n沖縄先島は雨\ny", f))
 
+    def test_local_rain_ok_but_dominant_rain_rejected(self):
+        f = {"pop": {"471000": 20, "472000": 20}}
+        for w in ("沖縄は局地的にわか雨", "沖縄は所により雨", "沖縄はところにより雨", "沖縄は局地的に強い雨"):
+            self.assertEqual(b.validate_rain_pop(f"🤖x\n{w}\ny", f), [], w)
+        for w in ("沖縄は曇り時々雨", "沖縄は曇りのち雨", "沖縄は雨"):
+            self.assertTrue(b.validate_rain_pop(f"🤖x\n{w}\ny", f), w)
+
     def test_other_date_clause_skipped(self):
         from datetime import datetime
         f = {"pop": {"011000": 10, "012000": 10, "016000": 10}}

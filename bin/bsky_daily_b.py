@@ -294,8 +294,12 @@ def validate_tone(text, facts, vlm=None):
     return problems
 
 
+# 局地的な雨の言い回し（降水確率が50%未満でも書いてよい）。卓越天気（曇り時々雨・雨のち曇り等）は対象外
+LOCAL_RAIN_RE = re.compile(r"(にわか|所により|ところにより|所々|ところどころ|局地的|散発的|一部)[^、。\n]{0,3}雨$")
+
+
 def validate_rain_pop(text, facts):
-    """今日の降水確率が50%未満の地域に「雨」を書いていないか。明日・明後日の文は今日の確率で判定できないので対象外"""
+    """今日の降水確率が50%未満の地域に卓越天気としての「雨」を書いていないか（にわか雨・所により雨などの局地的な雨は許可）。明日・明後日の文は今日の確率で判定できないので対象外"""
     problems, pop = [], facts.get("pop") or {}
     today_d = datetime.now(JST).day
 
@@ -308,6 +312,8 @@ def validate_rain_pop(text, facts):
         # 「雨」の直前にいちばん近い地域名をその雨の地域とする（「北海道の雷雨と先島の高波」の先島を雨扱いしない）
         hit = set()
         for m in re.finditer("雨", clause):
+            if LOCAL_RAIN_RE.search(clause[:m.end()]):
+                continue  # にわか雨・所により雨などの局地的な雨は確率が低くてもよい
             near = [(clause.rfind(kw, 0, m.start()), len(kw), kw) for kw in POP_REGIONS if kw in clause[:m.start()]]
             if near:
                 hit.add(max(near)[2])  # 位置が後ろ→長い名前の順
