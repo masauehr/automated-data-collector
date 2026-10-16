@@ -34,6 +34,7 @@ sys.path.insert(0, str(HERE))
 import server as jma  # noqa: E402  気象庁MCPの関数をそのまま使う
 from areas import AREA_CODE_MAP  # noqa: E402
 import vlm_status  # noqa: E402
+import notify  # noqa: E402
 import tsunami_guard  # noqa: E402
 
 
@@ -327,6 +328,18 @@ def validate_rain_pop(text, facts):
     return problems
 
 
+def _notify_text(rec):
+    """Slack 通知の本文。成功・投稿見送り（機械検証不合格）・投稿失敗の3通り"""
+    d = rec["date"]
+    if rec["posted"]:
+        return f"【Bluesky自動投稿】{d} 投稿しました（{rec['generated_at'][11:16]}）\n{rec['post_result']}\n\n{rec['text']}"
+    if rec.get("post_skipped"):
+        head = f"【Bluesky自動投稿】{d} ⚠️ 投稿を見送りました（機械検証で不合格）\n問題点:\n- " + "\n- ".join(rec["problems"])
+    else:
+        head = f"【Bluesky自動投稿】{d} ❌ 投稿に失敗しました\n{rec.get('post_result', '')}"
+    return head + f"\n\n生成文:\n{rec['text']}\n\n再実行: cd ~/openclaw_prj/projects/automated-data-collector && /opt/homebrew/bin/python3 bin/bsky_daily_b.py --post"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--post", action="store_true", help="実際に Bluesky へ投稿する（既定はシャドー）")
@@ -391,10 +404,17 @@ def main():
             r = subprocess.run([sys.executable, str(HERE / "bsky_post.py"), "--text", text], capture_output=True, text=True)
             rec["posted"] = r.returncode == 0
             rec["post_result"] = (r.stdout or r.stderr).strip()[:200]
+        notify.send(_notify_text(rec))
     SHADOW.mkdir(exist_ok=True)
     (SHADOW / f"{today}_{a.label}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2))
     print(json.dumps(rec, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:  # 取得失敗・Claude CLI失敗などで落ちたときも Slack に知らせる（--post のときのみ）
+        import traceback
+        if "--post" in sys.argv:
+            notify.send(f"【Bluesky自動投稿】{datetime.now(JST):%Y-%m-%d} ❌ スクリプトが異常終了しました\n{traceback.format_exc()[-1500:]}")
+        raise

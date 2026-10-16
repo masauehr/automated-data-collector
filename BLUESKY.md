@@ -98,7 +98,7 @@ python3 bin/bsky_post.py --dry-run --text "テスト"                 # 投稿�
 | 文章化 | `claude --print --model claude-haiku-4-5`（サブスク経由）1回。機械検証に落ちたら指摘付きで1回だけ再生成 |
 | 投稿 | 検証・津波ガードに合格したときだけ `bsky_post.py` で投稿。不合格なら投稿しない（`shadow/<日付>_B.json` に `post_skipped`） |
 | 記録 | `shadow/YYYY-MM-DD_B.json`（本文・モード・トークン・問題・投稿結果）、ログ `shadow/launchd.log` |
-| 通知 | **なし**（失敗しても静かに終わる。要改善: Slack へ結果通知） |
+| 通知 | **Slack DM に毎回通知**（2026-10-16〜）。投稿成功／機械検証で見送り（問題点・生成文・再実行コマンド付き）／投稿失敗／スクリプト異常終了。`bin/notify.py` が `openclaw message send` 経由で送る。宛先は `~/.config/bsky/slack_to`（1行 `slack:U…`、git管理外）。OpenClaw Gateway 停止時は通知が届かない（投稿自体には影響なし） |
 
 運用: `launchctl list | grep bsky_daily_b` ／ 手動実行 `/opt/homebrew/bin/python3 bin/bsky_daily_b.py [--post]` ／ 停止 `launchctl bootout gui/501/com.user.bsky_daily_b`
 **A版（非公開の内部実行・比較用）**: OpenClaw cron `bsky-internal-a`（id `348e8844-f81c-4898-9e6e-867720cd1347`、毎日 9:45、`bsky_post.py --shadow A` で `shadow/<日付>_A.json` に保存するだけ。Bluesky・Slack には出さない）。OpenClaw には 2026-10-11 から気象庁MCP `jma` が登録済み（`jma__get_typhoon` 等）。比較: `python3 bin/compare_bsky.py`。
@@ -148,7 +148,7 @@ VLM 側の `wind_now` の区切りは、同日に気象庁の風の強さの表�
 3. 3行目の先頭に「（9:40時点）」をコードで付与（警報は数分で切り替わるため）。時刻は警報の取得完了時刻。
 4. `shadow/YYYY-MM-DD_B.json` に `facts_at`・`warnings`・`warnings_raw`（警報のある地域の取得原文）・`pop` を保存。後から検証できる。
 
-**注意**: 降水確率が50%未満の日は、実際に雨が降っていても（例: 北海道の前線の雨）「雨」と書けない運用。検査に落ちると再生成1回→それでも不合格なら**投稿しない**（失敗通知は未実装）。
+**注意**: 降水確率が50%未満の日は、実際に雨が降っていても（例: 北海道の前線の雨）「雨」と書けない運用。検査に落ちると再生成1回→それでも不合格なら**投稿しない**（Slack DM に見送りと問題点が届く）。
 
 
 **例外（2026-10-16）**: 「にわか雨」「所により雨」「局地的に雨」「一部で雨」など局地的な雨は、降水確率が50%未満でも許可（`LOCAL_RAIN_RE`）。「曇り時々雨」「曇りのち雨」「雨」など卓越天気としての雨は従来どおり50%未満でNG。きっかけは10/16の「沖縄は局地的にわか雨」（最大20%）が不合格になり投稿されなかったこと。

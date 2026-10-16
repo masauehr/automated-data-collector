@@ -107,6 +107,18 @@ class TestRainPop(unittest.TestCase):
         self.assertTrue(b.validate_rain_pop(f"🤖x\n{b.datetime.now(b.JST).day}日は北海道で雨\ny", f))
 
 
+class TestNotifyText(unittest.TestCase):
+    base = {"date": "2026-10-16", "generated_at": "2026-10-16T09:42:02+09:00", "text": "🤖x\ny\nz", "problems": []}
+
+    def test_success_skipped_failed(self):
+        ok = b._notify_text({**self.base, "posted": True, "post_result": "投稿完了: at://x"})
+        self.assertIn("投稿しました", ok)
+        sk = b._notify_text({**self.base, "posted": False, "post_skipped": "不合格", "problems": ["沖縄が雨"]})
+        self.assertIn("見送り", sk); self.assertIn("沖縄が雨", sk); self.assertIn("再実行", sk)
+        ng = b._notify_text({**self.base, "posted": False, "post_result": "認証エラー"})
+        self.assertIn("失敗", ng); self.assertIn("認証エラー", ng)
+
+
 class TestTropicalDepression(unittest.TestCase):
     def test_fix_td_name(self):
         self.assertEqual(b.fix_td_name("■ 台風a号　発表\n実況: 熱帯低気圧"), "■ 熱帯低気圧　発表\n実況: 熱帯低気圧")
