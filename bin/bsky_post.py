@@ -5,7 +5,7 @@
   python3 bsky_post.py --text "本文" [--url URL] [--card-title T] [--card-desc D] [--dry-run]
   本文は --text の代わりに標準入力からも渡せる。
 
-認証情報は ~/.openclaw/bsky.env（権限600）から読む。内容は表示しない。
+認証情報は ~/.config/bsky/bsky.env（権限600）から読む。内容は表示しない。
   BSKY_HANDLE=xxxx.bsky.social
   BSKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx   # アプリパスワード（メインのパスワードは使わない）
 """
@@ -18,7 +18,7 @@ import urllib.request
 from pathlib import Path
 
 PDS = "https://bsky.social"
-ENV_PATH = Path.home() / ".openclaw" / "bsky.env"
+ENV_PATH = Path.home() / ".config" / "bsky" / "bsky.env"
 MAX_LEN = 300  # Bluesky の本文上限（grapheme）
 DEFAULT_URL = "https://masauehr.github.io/weather_chart_vlm/webui/index.html"
 

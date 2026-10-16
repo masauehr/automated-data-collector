@@ -20,4 +20,4 @@ bash bin/deploy_workspace.sh             # bin/ のスクリプトを ~/.opencla
 - Slack の送信先ユーザーIDは `<OWNER>` に置き換えて保存している（配信先は `apply` では触らない）。
 - 指示文を直す流れの推奨: `cron/*.md` を編集 → `apply` → 実行確認 → git commit。OpenClaw 側で直接直したら `export`。
 - 関連する OpenClaw 側の設定: 気象庁MCP は `openclaw/mcp-jma.json`（`openclaw mcp set jma "$(cat openclaw/mcp-jma.json)"` で再現）、エージェントの道具メモは `openclaw/workspace/TOOLS.md`。
-- 認証情報（`~/.openclaw/bsky.env`、`openclaw.json` 内のトークン）は**含めない・コミットしない**。
+- 認証情報（`~/.config/bsky/bsky.env`、`openclaw.json` 内のトークン）は**含めない・コミットしない**。
