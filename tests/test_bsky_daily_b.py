@@ -94,7 +94,7 @@ class TestRainPop(unittest.TestCase):
 
     def test_local_rain_ok_but_dominant_rain_rejected(self):
         f = {"pop": {"471000": 20, "472000": 20}}
-        for w in ("沖縄は局地的にわか雨", "沖縄は所により雨", "沖縄はところにより雨", "沖縄は局地的に強い雨"):
+        for w in ("沖縄は局地的にわか雨", "沖縄は所により雨", "沖縄はところにより雨", "沖縄は局地的に強い雨", "沖縄は曇りや雨の所あり"):
             self.assertEqual(b.validate_rain_pop(f"🤖x\n{w}\ny", f), [], w)
         for w in ("沖縄は曇り時々雨", "沖縄は曇りのち雨", "沖縄は雨"):
             self.assertTrue(b.validate_rain_pop(f"🤖x\n{w}\ny", f), w)
