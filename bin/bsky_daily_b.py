@@ -91,6 +91,7 @@ async def gather_facts():
     if failed:
         out["warnings"] += f"\n※取得に失敗した地域（警報の有無は不明。『なし』と書かない）: {', '.join(failed)}"
     out["warnings_raw"] = raw
+    out["warn_outlook"] = await _warn_outlook()
     out["facts_at"] = datetime.now(JST).strftime("%H:%M")  # 警報取得の完了時刻（投稿の「○時点」に使う）
     # 今日の降水確率（地域キーワードと突き合わせて「雨」表記を検査するため）
     out["pop"] = {}
@@ -100,6 +101,31 @@ async def gather_facts():
         except Exception:
             out["pop"][code] = None
     return out
+
+
+# 時系列予報の行「うるま市・波  注 注 警 …」から、警戒(警報級)以上の見通しがある種別を拾う
+TIMELINE_ROW_RE = re.compile(r"^\S+・(\S+?)\s+((?:[注警危切・]\s*)+)$")
+
+
+def _outlook_kinds(txt):
+    """get_warning_timeline の結果から、警戒(警)・危険(危)・災害切迫(切)の見通しがある種別（波・大雨など）の集合"""
+    kinds = set()
+    for ln in txt.splitlines():
+        m = TIMELINE_ROW_RE.match(ln.strip())
+        if m and re.search(r"[警危切]", m.group(2)):
+            kinds.add(m.group(1))
+    return kinds
+
+
+async def _warn_outlook():
+    """全府県の時系列予報から、明日までに警報級になる見通しの種別（例: {"波"}）。取得に失敗した府県は無視（＝その府県の予告は許可しない側に倒れる）"""
+    kinds = set()
+    for code in AREA_CODE_MAP:
+        try:
+            kinds |= _outlook_kinds(await jma._get_warning_timeline(code))
+        except Exception:
+            pass
+    return sorted(kinds)
 
 
 # 天気概況・予報官コメントを取る官署（全国の主役と、沖縄・九州の雨を拾うため）
@@ -180,6 +206,7 @@ def build_prompt(facts, vlm):
 - 【台風の影響の書き方】本土から離れている・警報が出ていないときは「厳重警戒」「暴風」「猛烈」を使わない。影響は【予報官コメント】や警報に書かれた範囲（例: うねり・高波）に限る
 - 【風の表現】風の強弱は平均風速（10分間平均）で判断し、書く。最大瞬間風速（突風）で強弱を分類しない。瞬間風速に触れる場合は「瞬間風速」と明記する。気象庁の区分（平均風速）: やや強い風=10以上15未満m/s、強い風=15以上20未満、非常に強い風=20以上30未満、猛烈な風=30以上（10m/s未満に予報用語はない）。
 - 「大雨」は、大雨に関する警報・注意報が発表中、または1時間30mm以上の観測があるときだけ使う（「可能性は低い」程度の話を大雨注意と書かない）
+- 【まだ発表されていない警報（「明日の○○警報に備え」など）は予告として書かない】。【警報の見通し】に載った種別だけ「警報級の見通し」と書ける。波・風は予報値（波高・風速）の数字で書く
 - 【概況・予報官コメントに「明日」以降の記述がある場合、それを今日のこととして書かない】
 - 台風を先頭に置かない。天気の主役（高気圧・気圧の谷・前線）が先、台風は注意点として短く
 - ハッシュタグ・URL・内部IDは書かない。絵文字は🤖のほか最大1個。推測や数値の創作は禁止
@@ -196,6 +223,9 @@ def build_prompt(facts, vlm):
 
 【降水ランキング（1時間降水量・上位）】
 {facts['rain']}
+
+【警報の見通し（時系列予報で明日までに警戒以上の見通しがある種別）】
+{', '.join(facts.get('warn_outlook') or []) or 'なし'}
 
 【地震（震度4以上）】
 {facts['quake_m4plus']}
@@ -251,6 +281,7 @@ def validate(text, facts, vlm=None):
         problems.append("台風があるのに『台風情報なし』")
     problems += validate_tone(text, facts, vlm)
     problems += validate_rain_pop(text, facts)
+    problems += validate_warning_forecast(text, facts)
     return problems
 
 
@@ -328,6 +359,32 @@ def validate_rain_pop(text, facts):
     return problems
 
 
+# 警報の種別→時系列予報の種別名
+WARN_KIND = {"波浪": "波", "大雨": "大雨", "土砂災害": "土砂災害", "暴風雪": "風", "暴風": "風", "高潮": "高潮", "大雪": "雪"}
+WARN_RE = re.compile(r"(波浪|大雨|土砂災害|暴風雪|暴風|高潮|大雪|洪水)?警報")
+
+
+def validate_warning_forecast(text, facts):
+    """発表中でない警報を書いていないか。「明日の波浪警報に備え」「波浪警報22日発表予定」のような予告は、
+    気象庁の時系列予報で同じ種別に警戒(警報級)以上の見通しがあるときだけ許す（2026-10-20 注意報止まりなのに予告した文が出たため）。
+    言い回しの列挙では漏れるので、警報名そのものを発表中／見通しありで裏取りする"""
+    problems, warn = [], facts.get("warnings", "")
+    active_any = not warn.startswith("（警報・特別警報の発表中なし）")
+    outlook = set(facts.get("warn_outlook") or [])
+    for clause in re.split(r"[。\n]", text):
+        if "警報" not in clause or "警報級" in clause or "解除" in clause:
+            continue
+        for m in WARN_RE.finditer(clause):
+            name = m.group(1)
+            if name is None:
+                if active_any:
+                    continue  # 種別なしの「警報」は、何か発表中なら可
+            elif f"{name}警報" in warn or WARN_KIND.get(name) in outlook:
+                continue  # 発表中、または時系列予報に警戒以上の見通しがある
+            problems.append(f"裏付けのない警報: 「{m.group(0)}」（発表中でなく、時系列予報にも警戒以上の見通しがない）: 「{clause.strip()}」")
+    return problems
+
+
 def _notify_text(rec):
     """Slack 通知の本文。成功・投稿見送り（機械検証不合格）・投稿失敗の3通り"""
     d = rec["date"]
@@ -395,7 +452,7 @@ def main():
         "text": text, "problems": problems, "retried": retried, "posted": False,
         "real_typhoons": sorted(typhoon_numbers(facts["typhoon"])),
         # 後から検証できるよう、投稿時点の事実を残す
-        "facts_at": facts["facts_at"], "warnings": facts["warnings"], "warnings_raw": raw_warnings, "pop": facts["pop"],
+        "facts_at": facts["facts_at"], "warnings": facts["warnings"], "warnings_raw": raw_warnings, "pop": facts["pop"], "warn_outlook": facts.get("warn_outlook"),
     }
     if a.post:
         if problems:

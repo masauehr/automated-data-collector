@@ -63,6 +63,29 @@ class TestParsers(unittest.TestCase):
         self.assertNotIn("最大風速", r)
 
 
+class TestWarningForecast(unittest.TestCase):
+    def test_unbacked_prediction_rejected(self):
+        f = {"warnings": "（警報・特別警報の発表中なし）", "warn_outlook": []}
+        self.assertTrue(b.validate_warning_forecast("🤖x\ny\n明日の波浪警報に備え、強風にも警戒を。", f))
+
+    def test_other_phrasing_rejected(self):
+        f = {"warnings": "（警報・特別警報の発表中なし）", "warn_outlook": []}
+        self.assertTrue(b.validate_warning_forecast("🤖x\ny\n波浪警報22日発表予定。", f))
+
+    def test_prediction_allowed_with_outlook(self):
+        f = {"warnings": "（警報・特別警報の発表中なし）", "warn_outlook": ["波"]}
+        self.assertEqual(b.validate_warning_forecast("🤖x\ny\n明日の波浪警報に備え。", f), [])
+
+    def test_active_warning_and_plain_mention_allowed(self):
+        f = {"warnings": "新潟県: 大雨警報（発表）", "warn_outlook": []}
+        self.assertEqual(b.validate_warning_forecast("🤖x\ny\n新潟で大雨警報が発表中。明日にかけて大雨警報に引き続き警戒。", f), [])
+        self.assertEqual(b.validate_warning_forecast("🤖x\ny\n警報級の可能性あり。", {}), [])
+
+    def test_outlook_kinds_parse(self):
+        txt = "うるま市・波  注 注 警 注\n那覇市・風  注 注 ・ ・\n久米島町・波高(m)  1 2"
+        self.assertEqual(b._outlook_kinds(txt), {"波"})
+
+
 if __name__ == "__main__":
     unittest.main()
 
