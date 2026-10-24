@@ -19,6 +19,11 @@ class TestTone(unittest.TestCase):
         f = {"warnings": "沖縄本島地方: 暴風警報（発表）"}
         self.assertEqual(b.validate_tone("🤖x\n雨\n暴風に厳重警戒", f), [])
 
+    def test_typhoon_first_line_allowed_when_typhoon_warning_active(self):
+        f = {"warnings": "沖縄本島地方: 暴風警報（発表）"}
+        self.assertEqual(b.validate_tone("🤖x 台風30号が沖縄に接近\n沖縄は荒天\ny", f), [])
+        self.assertTrue(b.validate_tone("🤖x 台風30号が沖縄に接近\n沖縄は荒天\ny", CALM))
+
     def test_long_line_rejected(self):
         self.assertTrue(b.validate_tone("🤖x\n" + "あ" * 101 + "\ny", CALM))
         self.assertEqual(b.validate_tone("🤖x\n" + "あ" * 100 + "\ny", CALM), [])

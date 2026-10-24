@@ -119,12 +119,18 @@ def _outlook_kinds(txt):
 
 async def _warn_outlook():
     """全府県の時系列予報から、明日までに警報級になる見通しの種別（例: {"波"}）。取得に失敗した府県は無視（＝その府県の予告は許可しない側に倒れる）"""
+    sem = asyncio.Semaphore(8)  # 取得は同期HTTPなのでスレッドに逃がし、同時数を絞って並列化する（直列だと約100秒かかった）
+
+    async def one(code):
+        async with sem:
+            try:
+                return _outlook_kinds(await asyncio.to_thread(asyncio.run, jma._get_warning_timeline(code)))
+            except Exception:
+                return set()
+
     kinds = set()
-    for code in AREA_CODE_MAP:
-        try:
-            kinds |= _outlook_kinds(await jma._get_warning_timeline(code))
-        except Exception:
-            pass
+    for k in await asyncio.gather(*(one(c) for c in AREA_CODE_MAP)):
+        kinds |= k
     return sorted(kinds)
 
 
@@ -242,6 +248,14 @@ def build_prompt(facts, vlm):
 
 
 def call_claude(prompt):
+    """claude CLI を呼ぶ。タイムアウト(300秒)したときだけ1回やり直す（2026-10-23 に再生成の呼び出しが固まり投稿できなかったため）"""
+    try:
+        return _call_claude_once(prompt)
+    except subprocess.TimeoutExpired:
+        return _call_claude_once(prompt)
+
+
+def _call_claude_once(prompt):
     env = os.environ.copy()
     env.pop("ANTHROPIC_API_KEY", None)  # サブスク認証を強制
     env.pop("ANTHROPIC_BASE_URL", None)
@@ -318,7 +332,8 @@ def validate_tone(text, facts, vlm=None):
     for i, ln in enumerate(lines, 1):
         if len(ln) > 100:
             problems.append(f"{i}行目が長すぎる({len(ln)}字。80字以内に要約する)")
-    if lines and "台風" in lines[0]:
+    # 台風が主役の日（暴風・波浪・高潮の警報が発表中）は、1行目が台風でもよい（2026-10-24 台風30号が沖縄に接近した日に投稿が止まったため）
+    if lines and "台風" in lines[0] and not re.search(r"暴風|波浪|高潮", warn):
         problems.append("1行目が台風になっている（天気の主役を先に書く）")
     # VLM が気圧の谷を指摘している日は、その雨域（気圧の谷／沖縄・九州付近）に触れること
     if vlm and vlm.get("status") == "ok" and vlm.get("troughs") and not any(w in text for w in RAIN_REGION_WORDS):
@@ -440,10 +455,14 @@ def main():
     problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
     retried = bool(problems)
     if problems:  # 機械検証に落ちたら、指摘を添えて1回だけ再生成
-        text2, tk2, t2 = call_claude(prompt + "\n\n【前回の出力の問題。直して出力し直す】\n- " + "\n- ".join(problems) + "\n前回の出力:\n" + text)
-        tokens, t_llm = tokens + tk2, t_llm + t2
-        text = add_tsunami(add_asof(norm(text2)))
-        problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
+        try:
+            text2, tk2, t2 = call_claude(prompt + "\n\n【前回の出力の問題。直して出力し直す】\n- " + "\n- ".join(problems) + "\n前回の出力:\n" + text)
+        except Exception as e:  # 再生成に失敗したら、最初の文と不合格理由のまま「見送り」にする
+            problems = problems + [f"再生成に失敗: {type(e).__name__}"]
+        else:
+            tokens, t_llm = tokens + tk2, t_llm + t2
+            text = add_tsunami(add_asof(norm(text2)))
+            problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
 
     rec = {
         "date": today, "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
