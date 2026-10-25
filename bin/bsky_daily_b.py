@@ -199,7 +199,7 @@ def build_prompt(facts, vlm):
     else:
         soft = ", ".join(vlm.get("soft_ng", [])) or "なし"
         vlm_part = (f"天気図VLM解説（気圧配置・気圧の谷・雨域の根拠。台風・警報は他の事実を優先）:\n"
-                    f"型: {vlm['pattern']}\n今日: {vlm['today']}\n明日: {vlm['tomorrow']}\n気圧の谷: {json.dumps(vlm['troughs'], ensure_ascii=False)}\n"
+                    f"型: {vlm['pattern'] or '（季節外れのため不採用。型に触れず本文のみ使う）'}\n今日: {vlm['today']}\n明日: {vlm['tomorrow']}\n気圧の谷: {json.dumps(vlm['troughs'], ensure_ascii=False)}\n"
                     f"VLMが突合しきれていない話題（根拠にしない・他の情報で裏取り）: {', '.join(vlm['cautions']) or 'なし'}\n"
                     f"VLMの実況突合でNGだった話題（降水・風などのVLMの記述は使わず、【降水ランキング】【予報官コメント】で裏取りする）: {soft}")
     return f"""以下の【取得済みの事実】だけを使い、Bluesky 投稿の本文を書いてください。
