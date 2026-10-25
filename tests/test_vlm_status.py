@@ -43,9 +43,15 @@ class TestNgHandling(unittest.TestCase):
         self.assertEqual(r["status"], "ok")
         self.assertEqual(r["soft_ng"], ["実況突合:降水"])
 
-    def test_label_and_season_ng_are_fatal(self):
-        for label in ("ラベル許可リスト", "季節整合"):
-            self.assertEqual(self._run([{"verdict": "NG", "label": label}])["status"], "fail")
+    def test_label_ng_is_fatal(self):
+        self.assertEqual(self._run([{"verdict": "NG", "label": "ラベル許可リスト"}])["status"], "fail")
+
+    def test_season_ng_drops_label_only(self):
+        r = self._run([{"verdict": "NG", "label": "季節整合"}])
+        self.assertEqual(r["status"], "ok")
+        self.assertIsNone(r["pattern"])
+        self.assertTrue(r["label_untrusted"])
+        self.assertEqual(r["today"], "晴れ。")
 
 
 if __name__ == "__main__":
