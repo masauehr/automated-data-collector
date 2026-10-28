@@ -9,6 +9,7 @@
 | 要素 | 場所 | 備考 |
 |---|---|---|
 | 投稿スクリプト | `bin/bsky_post.py`（本リポジトリが正本） | 実行コピーは `~/.openclaw/workspace/bin/bsky_post.py`。標準ライブラリのみ |
+| 全国警報まとめ | `bin/jma_national_warning.py`（2026-10-28 正本に取り込み。`deploy_workspace.sh` の対象） | weather-jp-am cron が exec。公開 JSON のみ使用・標準ライブラリのみ |
 | 認証 | `~/.openclaw/bsky.env`（権限600・リポジトリ外） | 雛形は `bin/bsky.env.example`。アプリパスワードを使用 |
 | cron | `bsky-weather-am`（id `7c515a83-6054-432c-bd5b-fc35f3b4d960`） | 毎日 09:40 JST、haiku／fallback sonnet、結果は Slack DM にも返る |
 | リンク先 | https://masauehr.github.io/weather_chart_vlm/webui/index.html | 毎朝 8:45 JST に Mac から更新 |
