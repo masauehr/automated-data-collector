@@ -86,6 +86,26 @@ class TestWarningForecast(unittest.TestCase):
         self.assertEqual(b.validate_warning_forecast("🤖x\ny\n新潟で大雨警報が発表中。明日にかけて大雨警報に引き続き警戒。", f), [])
         self.assertEqual(b.validate_warning_forecast("🤖x\ny\n警報級の可能性あり。", {}), [])
 
+    def test_keihokyu_ok_with_early_warning_only(self):
+        # 2026-10-27: 時系列予報になく早期注意情報（暴風 高）にあるだけの「暴風警報級」は合格
+        f = {"warnings": "（警報・特別警報の発表中なし）", "warn_outlook": [], "early_outlook": ["風"], "typhoon": "", "rain": ""}
+        t = "🤖AIによる自動生成 x\ny\n（9:44時点）北海道28日未明に暴風警報級見通し。"
+        self.assertEqual(b.validate_warning_forecast(t, f), [])
+        self.assertEqual(b.validate_tone(t, f), [])
+        self.assertFalse([p for p in b.validate(t, {**f, "typhoon": "", "pop": {}}) if "警報" in p or "暴風" in p])
+
+    def test_keihokyu_ok_with_timeline_only(self):
+        f = {"warnings": "（警報・特別警報の発表中なし）", "warn_outlook": ["風"], "early_outlook": []}
+        self.assertEqual(b.validate_warning_forecast("北海道は暴風警報級の見通し。", f), [])
+
+    def test_keihokyu_rejected_without_any_outlook(self):
+        f = {"warnings": "（警報・特別警報の発表中なし）", "warn_outlook": ["波"], "early_outlook": ["雪"]}
+        self.assertTrue(b.validate_warning_forecast("北海道は暴風警報級の見通し。", f))
+
+    def test_early_kinds_parse(self):
+        txt = "| 現象 | 10/28(水)6時〜 | 10/28(水)12時〜 |\n|------|------|------|\n| 大雨 | － | － |\n| 風（風雪） | 高 | － |\n| 波 | － | － |\n| 潮位 | 中 | － |"
+        self.assertEqual(b._early_kinds(txt), {"風", "高潮"})
+
     def test_outlook_kinds_parse(self):
         txt = "うるま市・波  注 注 警 注\n那覇市・風  注 注 ・ ・\n久米島町・波高(m)  1 2"
         self.assertEqual(b._outlook_kinds(txt), {"波"})
