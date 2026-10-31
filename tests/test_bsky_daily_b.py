@@ -111,6 +111,59 @@ class TestWarningForecast(unittest.TestCase):
         self.assertEqual(b._outlook_kinds(txt), {"波"})
 
 
+class TestPruneText(unittest.TestCase):
+    F = {"warnings": "（警報・特別警報の発表中なし）", "pop": {"270000": 10, "011000": 80}, "rain": "", "typhoon": ""}
+
+    def test_drop_only_failing_sentences(self):
+        # 2026-10-31: 近畿北部の雨（降水確率10%）と暴風の文だけを除いて、残りは残す
+        t = ("🤖AIによる自動生成 10月31日。高気圧に覆われる。\n"
+             "北海道は雷伴う雨で暴風の可能性。関東は晴れ。近畿北部は雨や雷。明日は曇り広がる。\n"
+             "（10:04時点）台風31号は小笠原近海で北上。")
+        out, cut = b.prune_text(t, self.F)
+        self.assertEqual(out.splitlines()[1], "関東は晴れ。明日は曇り広がる。")
+        self.assertEqual(len(out.splitlines()), 3)
+        self.assertEqual(len(cut), 2)
+        self.assertEqual(b.validate_rain_pop(out, self.F) + b.validate_strong(out, self.F), [])
+
+    def test_asof_carried_to_next_sentence(self):
+        t = "🤖AIによる自動生成 a。\nb。\n（9:40時点）暴風に警戒。台風31号は離れる。"
+        out, _ = b.prune_text(t, self.F)
+        self.assertEqual(out.splitlines()[2], "（9:40時点）台風31号は離れる。")
+
+    def test_none_when_a_line_becomes_empty(self):
+        t = "🤖AIによる自動生成 a。\n近畿北部は雨や雷。\n（9:40時点）台風31号は離れる。"
+        out, cut = b.prune_text(t, self.F)
+        self.assertIsNone(out)
+
+    def test_none_when_asof_cannot_be_carried(self):
+        t = "🤖AIによる自動生成 a。\nb。\n津波文。（9:40時点）暴風に警戒。"
+        self.assertIsNone(b.prune_text(t, self.F)[0])
+
+    def test_ai_label_sentence_never_dropped(self):
+        t = "🤖AIによる自動生成 大雨で暴風。\nb。\n（9:40時点）c。"
+        out, cut = b.prune_text(t, self.F)
+        self.assertEqual(out, t)
+        self.assertEqual(cut, [])
+
+
+class TestOutlookAndHokuriku(unittest.TestCase):
+    def test_boufu_allowed_with_early_warning_outlook(self):
+        # 2026-10-31: 北海道の暴風「中」（早期注意情報）があれば「暴風の可能性」は合格
+        f = {"warnings": "（警報・特別警報の発表中なし）", "early_outlook": ["風", "波"], "warn_outlook": [], "rain": ""}
+        self.assertEqual(b.validate_strong("北海道は雷伴う雨で暴風の可能性、波も高くなる。", f), [])
+
+    def test_boufu_rejected_without_any_outlook(self):
+        f = {"warnings": "（警報・特別警報の発表中なし）", "early_outlook": ["波"], "warn_outlook": [], "rain": ""}
+        self.assertTrue(b.validate_strong("北海道は暴風の可能性。", f))
+
+    def test_hokuriku_rain_checked_by_hokuriku_pop(self):
+        f = {"pop": {"150000": 10, "160000": 70, "170000": 60, "180000": 40, "270000": 10}}
+        self.assertEqual(b.validate_rain_pop("北陸は雨や雪。", f), [])  # 富山70%
+        f["pop"].update({"160000": 20, "170000": 30})
+        self.assertTrue(b.validate_rain_pop("北陸は雨。", f))
+        self.assertEqual(b.validate_rain_pop("北陸は雨や雪。", {"pop": {}}), [])  # 確率が取れなければ対象外
+
+
 if __name__ == "__main__":
     unittest.main()
 

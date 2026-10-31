@@ -182,7 +182,7 @@ POP_REGIONS = {
     "先島": ("473000", "474000"), "八重山": ("474000",), "宮古": ("473000",), "大東": ("472000",),
     "沖縄": ("471000",), "奄美": ("460040",), "九州南部": ("460100",), "鹿児島": ("460100",),
     "九州": ("400000", "460100"), "関東": ("130000",), "近畿": ("270000",),
-    "北海道": ("011000", "012000", "016000"),
+    "北海道": ("011000", "012000", "016000"), "北陸": ("150000", "160000", "170000", "180000"),
 }
 POP_LIMIT = 50  # 今日の降水確率（最大）がこれ未満なら卓越雨ではないので「雨」と書かない（%）
 
@@ -252,6 +252,7 @@ def build_prompt(facts, vlm):
 - 「大雨」は、大雨に関する警報・注意報が発表中、または1時間30mm以上の観測があるときだけ使う（「可能性は低い」程度の話を大雨注意と書かない）
 - 【まだ発表されていない警報（「明日の○○警報に備え」など）は予告として書かない】。【警報の見通し】【早期注意情報（警報級の可能性が高・中）】のどちらかに載った種別だけ「警報級の見通し」と書ける。波・風は予報値（波高・風速）の数字で書く
 - 【概況・予報官コメントに「明日」以降の記述がある場合、それを今日のこととして書かない】
+- 【地方名は気象庁の地方区分で書く】北海道・東北・関東・北陸（新潟・富山・石川・福井）・東海・近畿・中国・四国・九州・沖縄。北陸の天気を「近畿北部」と書かない
 - 台風を先頭に置かない。天気の主役（高気圧・気圧の谷・前線）が先、台風は注意点として短く
 - ハッシュタグ・URL・内部IDは書かない。絵文字は🤖のほか最大1個。推測や数値の創作は禁止
 - 本文だけを出力する（前置き・説明・コードブロック不要）
@@ -355,22 +356,62 @@ def _max_rain_1h(rain_txt):
 
 # 事実に裏付けのない誇張表現を弾く。「厳重警戒」は警報が発表中のときだけ、「暴風」は暴風警報等があるときだけ許す
 HEAVY_WORDS = {"厳重警戒": "警報", "暴風": "暴風", "猛烈": "猛烈", "非常に危険": "警報"}
+# 発表中の警報がなくても、この種別の見通し（時系列予報か早期注意情報の高・中）があれば書いてよい語（2026-10-31 北海道の暴風・波浪「中」を誤検知したため）
+HEAVY_OUTLOOK = {"暴風": "風"}
 RAIN_REGION_WORDS = ("気圧の谷", "沖縄", "奄美", "九州", "鹿児島", "トカラ", "南西諸島")
 
 
-def validate_tone(text, facts, vlm=None):
-    """内容のバランスの機械検査（誇張・要点のずれ）。2026-10-13 に台風へ引きずられた投稿が出たため追加"""
+def validate_strong(text, facts):
+    """裏付けのない強い表現・「大雨」の検査。文単位で判定できるので、不合格の文だけ除く対象（prune_text）"""
     problems = []
     warn = facts.get("warnings", "")
     active = not warn.startswith("（警報・特別警報の発表中なし）")
     # 「暴風警報級」「大雨警報級」は見通しの表現。ここでは除き、見通しの裏付けは validate_warning_forecast が見る
     check_text = KEIHOKYU_RE.sub("", text)
     for w, need in HEAVY_WORDS.items():
-        if w in check_text and not (active and need in warn):
+        if w in check_text and not (active and need in warn) and HEAVY_OUTLOOK.get(w) not in outlook_all(facts):
             problems.append(f"裏付けのない強い表現: 「{w}」（発表中の警報にその根拠がない）")
     # 「大雨」は、大雨に関する警報・注意報が発表中か、1時間30mm以上の観測がある場合だけ（可能性が低い話の誇張を防ぐ）
     if "大雨" in check_text and not ("大雨" in warn or _max_rain_1h(facts.get("rain", "")) >= 30):
         problems.append("裏付けのない「大雨」（発表中の警報にも30mm/h以上の観測にもない）")
+    return problems
+
+
+def soft_problems(text, facts):
+    """文単位で除ける種類の不合格（降水確率に合わない雨・裏付けのない強い表現・大雨）。台風・津波・警報名・書式などは含めない"""
+    return validate_rain_pop(text, facts) + validate_strong(text, facts)
+
+
+ASOF_RE = re.compile(r"^（\d{1,2}:\d{2}時点）")
+
+
+def prune_text(text, facts):
+    """不合格の文（soft_problems に該当する「。」区切りの文）だけを除く。戻り値は (除いた後の本文, 除いた文の一覧)。
+    先頭のAI明記の文は除かない。「（9:40時点）」は、その文が除かれても次に残る文の先頭へ引き継ぐ。
+    3行のどれかに本文が残らなくなったら (None, 除いた文) を返す（空の行を作らない＝3行を保つ）"""
+    out, dropped = [], []
+    for ln in text.splitlines():
+        keep, pending = [], ""
+        for s in re.findall(r"[^。]+。?", ln):
+            m = ASOF_RE.match(s)
+            if m:
+                pending = m.group(0)
+            core = s[len(m.group(0)):] if m else s
+            if "🤖AIによる自動生成" not in core and soft_problems(core, facts):
+                dropped.append(core.strip())
+                continue  # この文は除く。時点の表記（pending）は次に残る文へ引き継ぐ
+            keep.append(pending + core)
+            pending = ""
+        if not keep or pending:  # 本文が残らない／時点の表記の引き継ぎ先がない行は作らない
+            return None, dropped
+        out.append("".join(keep))
+    return "\n".join(out), dropped
+
+
+def validate_tone(text, facts, vlm=None):
+    """内容のバランスの機械検査（誇張・要点のずれ）。2026-10-13 に台風へ引きずられた投稿が出たため追加"""
+    problems = validate_strong(text, facts)
+    warn = facts.get("warnings", "")
     lines = [ln for ln in text.splitlines() if ln.strip()]
     for i, ln in enumerate(lines, 1):
         if len(ln) > 100:
@@ -455,7 +496,9 @@ def _notify_text(rec):
     """Slack 通知の本文。成功・投稿見送り（機械検証不合格）・投稿失敗の3通り"""
     d = rec["date"]
     if rec["posted"]:
-        return f"【Bluesky自動投稿】{d} 投稿しました（{rec['generated_at'][11:16]}）\n{rec['post_result']}\n\n{rec['text']}"
+        cut = ("\n\n⚠️ 機械検証で不合格の文を除いて投稿しました:\n- " + "\n- ".join(rec["dropped"])
+               + "\n理由:\n- " + "\n- ".join(rec["original_problems"])) if rec.get("dropped") else ""
+        return f"【Bluesky自動投稿】{d} 投稿しました（{rec['generated_at'][11:16]}）\n{rec['post_result']}\n\n{rec['text']}{cut}"
     if rec.get("post_skipped"):
         head = f"【Bluesky自動投稿】{d} ⚠️ 投稿を見送りました（機械検証で不合格）\n問題点:\n- " + "\n- ".join(rec["problems"])
     else:
@@ -515,6 +558,15 @@ def main():
             text = add_tsunami(add_asof(norm(text2)))
             problems = validate(text, facts, vlm) + tsunami_guard.check_text(text, tstate)
 
+    dropped, original_text, original_problems = [], None, None
+    if problems:  # 不合格の文（雨・強い表現・大雨）だけを除いて再検査。全部通ったときだけ除いた本文で投稿する（2026-10-31 追加）
+        pruned, cut = prune_text(text, facts)
+        if pruned and cut:
+            left = validate(pruned, facts, vlm) + tsunami_guard.check_text(pruned, tstate)
+            if not left:
+                original_text, original_problems = text, problems
+                text, problems, dropped = pruned, [], cut
+
     rec = {
         "date": today, "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
         "mode": "VLMあり" if vlm["status"] == "ok" else f"VLMなし({vlm.get('reason')})",
@@ -524,6 +576,8 @@ def main():
         # 後から検証できるよう、投稿時点の事実を残す
         "facts_at": facts["facts_at"], "warnings": facts["warnings"], "warnings_raw": raw_warnings, "pop": facts["pop"], "warn_outlook": facts.get("warn_outlook"), "early_outlook": facts.get("early_outlook"),
     }
+    if dropped:  # 除いた文と、除く前の本文・不合格の理由を残す
+        rec.update({"dropped": dropped, "original_text": original_text, "original_problems": original_problems})
     if a.post:
         if problems:
             rec["post_skipped"] = "機械検証で不合格のため投稿しない"
