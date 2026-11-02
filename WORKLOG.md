@@ -126,4 +126,4 @@
 - 取得は1回に統合（全国集合も同データから生成）。テスト64件OK。実データの取得動作を確認（投稿なし）。
 
 ### 2026-11-02 投稿に jma-navigator のリンクを追加
-- 4行目に「🔎気象庁サイトの案内 https://jma-navigator.onrender.com」。検査後に付与、300字超は省略。テスト66件OK。README にも関連サービスとして記載。
+- 4行目に「🔎気象庁サイトの案内」＋ [https://jma-navigator.onrender.com](https://jma-navigator.onrender.com) 。検査後に付与、300字超は省略。テスト66件OK。README にも関連サービスとして記載。

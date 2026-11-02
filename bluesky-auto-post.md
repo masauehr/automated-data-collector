@@ -202,5 +202,5 @@ VLM 側の `wind_now` の区切りは、同日に気象庁の風の強さの表�
 - 限界: 時間帯（「28日未明」など）は見ない。地域名は `POP_REGIONS` にあるものだけ。
 
 ## 2026-11-02 追記: 投稿の末尾に jma-navigator へのリンク
-- 機械検証を通った本文の**4行目**に「🔎気象庁サイトの案内 https://jma-navigator.onrender.com」を付ける（`add_navigator_link`）。検査は3行構成が前提なので、検査の後に付ける。
+- 機械検証を通った本文の**4行目**に「🔎気象庁サイトの案内」＋ [https://jma-navigator.onrender.com](https://jma-navigator.onrender.com) を付ける（`add_navigator_link`）。検査は3行構成が前提なので、検査の後に付ける。
 - 付けると300字を超える日は付けない（切れて本文が欠けるより付けない）。URLは `bsky_post.py` がリンク化する。リンクカードは従来どおり天気図VLM解説のページ。

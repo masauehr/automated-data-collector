@@ -27,6 +27,13 @@ OpenClaw まわりは複数のリポジトリに分かれている。**本リポ
 | **weather_chart_vlm** `~/projects/weather_chart_vlm` | 天気図・衛星のVLM解説（毎朝 8:45 更新、GitHub Pages） | Bluesky 投稿の**リンク先**であり、気圧配置の根拠として `history/<日付>/data.json` を読む（`bin/vlm_status.py`） |
 | **jma_mcp** `~/projects/jma_mcp` | 気象庁MCPサーバー | B版が関数を直接 import、OpenClaw にも MCP `jma` として登録（`openclaw/mcp-jma.json`） |
 
+## Bluesky 投稿に関連するプロジェクト
+
+毎朝の投稿には、本文のほかに次の2つのプロジェクトへの導線が付く。
+
+- **天気図VLM解説（weather_chart_vlm）**: 天気図・衛星画像をAI（VLM）が解説する日次更新ページ。投稿の**リンクカード**の遷移先で、投稿本文の気圧配置の根拠にも使う。[公開ページ](https://masauehr.github.io/weather_chart_vlm/webui/index.html) / [GitHub](https://github.com/masauehr/weather_chart_vlm)
+- **気象庁ナビ（jma_navigator）**: 知りたい情報が気象庁サイトのどのページにあるかを案内するアシスタント。投稿の**4行目**にリンクを載せている。[公開ページ](https://jma-navigator.onrender.com) / [GitHub](https://github.com/masauehr/jma_navigator)
+
 OpenClaw 本体の設定・実行コピーは git 外の `~/.openclaw/`（`openclaw.json`、`workspace/bin/`）にあり、本リポジトリの `bin/deploy_workspace.sh` と `bin/cron_sync.py` で反映・同期する。B版の自動実行は launchd（`com.user.bsky_daily_b.plist`）。
 
 ```
