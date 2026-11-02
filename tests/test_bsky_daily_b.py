@@ -181,6 +181,15 @@ class TestRegionalOutlook(unittest.TestCase):
         f = {k: v for k, v in self.F.items() if k != "outlook_areas"}
         self.assertEqual(b.validate_warning_forecast("🤖x\ny\n沖縄は波浪警報級の見通し。", f), [])
 
+class TestNavigatorLink(unittest.TestCase):
+    def test_added_as_fourth_line(self):
+        t = b.add_navigator_link("🤖a\nb\nc")
+        self.assertEqual(t.splitlines()[3], b.NAVIGATOR_LINE)
+
+    def test_skipped_when_too_long(self):
+        t = "🤖a\nb\n" + "あ" * 270
+        self.assertEqual(b.add_navigator_link(t), t)
+
 
 if __name__ == "__main__":
     unittest.main()

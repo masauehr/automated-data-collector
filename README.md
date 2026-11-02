@@ -3,6 +3,7 @@
 cron の指示文・設定は [cron/](cron/README.md)（`bin/cron_sync.py` で git と同期）。詳しくは [bluesky-auto-post.md](bluesky-auto-post.md)（運用マニュアル）・[BLUESKY.md](BLUESKY.md)（Bluesky 投稿の仕様）・[COMPARE-A-B.md](COMPARE-A-B.md)（A/B比較）・[WORKLOG.md](WORKLOG.md)（作業記録）を参照。
 
 気象・経済・AI の情報を自動で収集・要約し、Slack と Bluesky に配信する自動処理の運用リポジトリ。
+関連サービス: 気象庁HP案内アシスタント [jma-navigator](https://jma-navigator.onrender.com)（Bluesky の毎朝の投稿の4行目にもリンクを載せている）。
 （2026-10-10 時点の実態に更新。`openclaw cron list --all` が正）
 
 **実行基盤は OpenClaw に限らない。** 始まりは OpenClaw の cron（Slack 配信、Bluesky A版）だったが、Bluesky 自動投稿は 2026-10-11 から **OpenClaw を使わない B版（launchd＋コード＋Claude Code CLI）が本番**になった。OpenClaw 上の cron（Slack のまとめ、Bluesky A版の内部比較）も継続している。

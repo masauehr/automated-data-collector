@@ -490,6 +490,15 @@ def validate_warning_forecast(text, facts):
     return problems
 
 
+NAVIGATOR_LINE = "🔎気象庁サイトの案内 https://jma-navigator.onrender.com"
+
+
+def add_navigator_link(text):
+    """本文の末尾に jma-navigator へのリンクを4行目として付ける。300字を超えるなら付けない（切れて本文が欠けるより付けない）"""
+    cand = text + "\n" + NAVIGATOR_LINE
+    return cand if len(cand) <= 300 else text
+
+
 def _notify_text(rec):
     """Slack 通知の本文。成功・投稿見送り（機械検証不合格）・投稿失敗の3通り"""
     d = rec["date"]
@@ -564,6 +573,9 @@ def main():
             if not left:
                 original_text, original_problems = text, problems
                 text, problems, dropped = pruned, [], cut
+
+    if not problems:
+        text = add_navigator_link(text)  # 検査を通った後に4行目として付ける（検査は3行構成を前提にするため）
 
     rec = {
         "date": today, "generated_at": datetime.now(JST).isoformat(timespec="seconds"),
