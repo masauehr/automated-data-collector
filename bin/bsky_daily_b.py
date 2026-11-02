@@ -91,8 +91,12 @@ async def gather_facts():
     if failed:
         out["warnings"] += f"\n※取得に失敗した地域（警報の有無は不明。『なし』と書かない）: {', '.join(failed)}"
     out["warnings_raw"] = raw
-    out["warn_outlook"] = await _warn_outlook()
-    out["early_outlook"] = await _early_outlook()
+    # 地域別の見通し（府県コード→種別）。地域名つきの予告を、その地域の見通しで裏取りするため
+    w = await _kinds_by_area(jma._get_warning_timeline, _outlook_kinds)
+    e = await _kinds_by_area(jma._get_early_warning, _early_kinds)
+    out["warn_outlook"] = sorted(set().union(*w.values()))
+    out["early_outlook"] = sorted(set().union(*e.values()))
+    out["outlook_areas"] = {c: sorted(w.get(c, set()) | e.get(c, set())) for c in AREA_CODE_MAP if w.get(c) or e.get(c)}
     out["facts_at"] = datetime.now(JST).strftime("%H:%M")  # 警報取得の完了時刻（投稿の「○時点」に使う）
     # 今日の降水確率（地域キーワードと突き合わせて「雨」表記を検査するため）
     out["pop"] = {}
@@ -118,21 +122,18 @@ def _outlook_kinds(txt):
     return kinds
 
 
-async def _warn_outlook():
-    """全府県の時系列予報から、明日までに警報級になる見通しの種別（例: {"波"}）。取得に失敗した府県は無視（＝その府県の予告は許可しない側に倒れる）"""
-    sem = asyncio.Semaphore(8)  # 取得は同期HTTPなのでスレッドに逃がし、同時数を絞って並列化する（直列だと約100秒かかった）
+async def _kinds_by_area(getter, kinds_fn):
+    """全府県に getter を並列で呼び、府県コード→種別の集合を返す。取得に失敗した府県は空（＝予告は許可しない側）"""
+    sem = asyncio.Semaphore(8)
 
     async def one(code):
         async with sem:
             try:
-                return _outlook_kinds(await asyncio.to_thread(asyncio.run, jma._get_warning_timeline(code)))
+                return code, kinds_fn(await asyncio.to_thread(asyncio.run, getter(code)))
             except Exception:
-                return set()
+                return code, set()
 
-    kinds = set()
-    for k in await asyncio.gather(*(one(c) for c in AREA_CODE_MAP)):
-        kinds |= k
-    return sorted(kinds)
+    return dict(await asyncio.gather(*(one(c) for c in AREA_CODE_MAP)))
 
 
 # 早期注意情報の現象名→警報の種別名（時系列予報の種別名 = WARN_KIND の値に揃える）
@@ -148,23 +149,6 @@ def _early_kinds(txt):
         if m and m.group(1) in EARLY_KIND and re.search(r"[高中]", m.group(2)):
             kinds.add(EARLY_KIND[m.group(1)])
     return kinds
-
-
-async def _early_outlook():
-    """全府県の早期注意情報から、警報級の可能性が高・中の種別（例: ["波", "風"]）。取得に失敗した府県は無視（＝その府県の予告は許可しない側に倒れる）"""
-    sem = asyncio.Semaphore(8)
-
-    async def one(code):
-        async with sem:
-            try:
-                return _early_kinds(await asyncio.to_thread(asyncio.run, jma._get_early_warning(code)))
-            except Exception:
-                return set()
-
-    kinds = set()
-    for k in await asyncio.gather(*(one(c) for c in AREA_CODE_MAP)):
-        kinds |= k
-    return sorted(kinds)
 
 
 def outlook_all(facts):
@@ -464,6 +448,20 @@ WARN_RE = re.compile(r"(波浪|大雨|土砂災害|暴風雪|暴風|高潮|大�
 KEIHOKYU_RE = re.compile(r"(波浪|大雨|土砂災害|暴風雪|暴風|高潮|大雪|洪水)?警報級")
 
 
+def _kind_backed(kind, clause, facts, outlook):
+    """種別 kind（波・風など）の見通しが裏付けられているか。文に地域名（POP_REGIONSのキー）があり、
+    地域別データ(outlook_areas)があれば、その地域の見通しで判定する。なければ全国の集合で判定"""
+    areas = facts.get("outlook_areas")
+    if not areas:
+        return kind in outlook
+    # 最後に出る地域名を採用（「北海道は…沖縄で…」なら沖縄）。長い名前を優先
+    near = [(clause.rfind(kw), len(kw), kw) for kw in POP_REGIONS if kw in clause]
+    if not near:
+        return kind in outlook
+    codes = POP_REGIONS[max(near)[2]]
+    return any(kind in areas.get(c, ()) for c in codes)
+
+
 def validate_warning_forecast(text, facts):
     """発表中でない警報を書いていないか。「明日の波浪警報に備え」「波浪警報22日発表予定」のような予告は、
     気象庁の時系列予報で同じ種別に警戒(警報級)以上の見通しがあるときだけ許す（2026-10-20 注意報止まりなのに予告した文が出たため）。
@@ -476,7 +474,7 @@ def validate_warning_forecast(text, facts):
             # 「暴風警報級」のような見通しは、種別が時系列予報か早期注意情報の見通しにあるか、発表中なら可
             for m in KEIHOKYU_RE.finditer(clause):
                 name = m.group(1)
-                if name and WARN_KIND.get(name) and WARN_KIND[name] not in outlook and f"{name}警報" not in warn:
+                if name and WARN_KIND.get(name) and not _kind_backed(WARN_KIND[name], clause, facts, outlook) and f"{name}警報" not in warn:
                     problems.append(f"裏付けのない警報級の見通し: 「{m.group(0)}」（時系列予報にも早期注意情報にも見通しがない）: 「{clause.strip()}」")
             continue
         if "警報" not in clause or "解除" in clause:
@@ -486,7 +484,7 @@ def validate_warning_forecast(text, facts):
             if name is None:
                 if active_any:
                     continue  # 種別なしの「警報」は、何か発表中なら可
-            elif f"{name}警報" in warn or WARN_KIND.get(name) in outlook:
+            elif f"{name}警報" in warn or _kind_backed(WARN_KIND.get(name), clause, facts, outlook):
                 continue  # 発表中、または時系列予報に警戒以上の見通しがある
             problems.append(f"裏付けのない警報: 「{m.group(0)}」（発表中でなく、時系列予報にも警戒以上の見通しがない）: 「{clause.strip()}」")
     return problems
@@ -574,7 +572,7 @@ def main():
         "text": text, "problems": problems, "retried": retried, "posted": False,
         "real_typhoons": sorted(typhoon_numbers(facts["typhoon"])),
         # 後から検証できるよう、投稿時点の事実を残す
-        "facts_at": facts["facts_at"], "warnings": facts["warnings"], "warnings_raw": raw_warnings, "pop": facts["pop"], "warn_outlook": facts.get("warn_outlook"), "early_outlook": facts.get("early_outlook"),
+        "facts_at": facts["facts_at"], "warnings": facts["warnings"], "warnings_raw": raw_warnings, "pop": facts["pop"], "warn_outlook": facts.get("warn_outlook"), "early_outlook": facts.get("early_outlook"), "outlook_areas": facts.get("outlook_areas"),
     }
     if dropped:  # 除いた文と、除く前の本文・不合格の理由を残す
         rec.update({"dropped": dropped, "original_text": original_text, "original_problems": original_problems})

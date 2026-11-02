@@ -163,6 +163,24 @@ class TestOutlookAndHokuriku(unittest.TestCase):
         self.assertTrue(b.validate_rain_pop("北陸は雨。", f))
         self.assertEqual(b.validate_rain_pop("北陸は雨や雪。", {"pop": {}}), [])  # 確率が取れなければ対象外
 
+class TestRegionalOutlook(unittest.TestCase):
+    """地域名つきの警報級の予告は、その地域の見通しで裏取りする（他地域の見通しで通さない）"""
+    F = {"warnings": "（警報・特別警報の発表中なし）", "warn_outlook": ["波"], "early_outlook": [],
+         "outlook_areas": {"011000": ["波"]}}
+
+    def test_other_region_outlook_rejected(self):
+        self.assertTrue(b.validate_warning_forecast("🤖x\ny\n沖縄は波浪警報級の見通し。", self.F))
+
+    def test_same_region_outlook_allowed(self):
+        self.assertEqual(b.validate_warning_forecast("🤖x\ny\n北海道は波浪警報級の見通し。", self.F), [])
+
+    def test_no_region_falls_back_to_national(self):
+        self.assertEqual(b.validate_warning_forecast("🤖x\ny\n波浪警報級の見通し。", self.F), [])
+
+    def test_without_area_data_uses_national(self):
+        f = {k: v for k, v in self.F.items() if k != "outlook_areas"}
+        self.assertEqual(b.validate_warning_forecast("🤖x\ny\n沖縄は波浪警報級の見通し。", f), [])
+
 
 if __name__ == "__main__":
     unittest.main()
