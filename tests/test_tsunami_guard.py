@@ -55,6 +55,35 @@ class TestClassify(unittest.TestCase):
         self.assertIn("取得できません", st["sentence"])
 
 
+class TestForecastWindow(unittest.TestCase):
+    """津波予報は電文の継続時間で切る（2026-11-07: 24時間固定で終了後も投稿に載った）"""
+    def test_parse_hours(self):
+        self.assertEqual(g.parse_hours("今後２、３時間程度は若干の海面変動が継続"), 3)
+        self.assertEqual(g.parse_hours("今後約１時間は継続"), 1)
+        self.assertIsNone(g.parse_hours("継続する可能性"))
+        self.assertIsNone(g.parse_hours(""))
+
+    def test_ended_forecast_ignored(self):
+        it = item("津波予報（若干の海面変動）", rdt="2026-11-06T19:53:00+09:00")
+        it["_hours"] = 3
+        now = datetime(2026, 11, 7, 13, 45, tzinfo=JST)
+        self.assertEqual(g.classify([it], now)["level"], "なし")
+
+    def test_within_hours_kept(self):
+        it = item("津波予報（若干の海面変動）", rdt="2026-11-06T19:53:00+09:00")
+        it["_hours"] = 3
+        self.assertEqual(g.classify([it], datetime(2026, 11, 6, 22, 0, tzinfo=JST))["level"], "津波予報")
+
+    def test_unreadable_hours_uses_fallback(self):
+        it = item("津波予報（若干の海面変動）", rdt="2026-11-06T19:53:00+09:00")
+        self.assertEqual(g.classify([it], datetime(2026, 11, 7, 1, 0, tzinfo=JST))["level"], "津波予報")
+        self.assertEqual(g.classify([it], datetime(2026, 11, 7, 13, 45, tzinfo=JST))["level"], "なし")
+
+    def test_advisory_not_shortened(self):
+        it = item("津波注意報", rdt="2026-11-06T19:53:00+09:00", ttl="津波警報・注意報・予報")
+        self.assertEqual(g.classify([it], datetime(2026, 11, 7, 13, 45, tzinfo=JST))["level"], "津波注意報")
+
+
 class TestCheckText(unittest.TestCase):
     forecast = g.classify([item("津波予報（若干の海面変動）")], NOW)
     none = g.classify([], NOW)

@@ -12,6 +12,7 @@
 """
 import argparse
 import json
+import re
 import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -23,14 +24,43 @@ LINK = "気象庁の最新情報を確認してください。"
 # 重い順。「不明」は未知の種別（過小評価を避けるため、予報より重く扱う）
 RANK = {"大津波警報": 5, "津波警報": 4, "津波注意報": 3, "不明": 2, "津波予報": 1, "なし": 0}
 # 発表からこの時間を過ぎた情報は無視する（予報は短く、警報級は長く見る）
+# 津波予報（若干の海面変動）は電文に「今後N時間程度は継続」とあり実質数時間で終わる（解除の電文は出ない）。
+# 2026-11-07: 24時間固定だと終わった後も「発表されています」と投稿してしまったため、電文のN時間+余裕で切る。読めなければ FORECAST_FALLBACK
 WINDOW = {"津波予報": timedelta(hours=24), "不明": timedelta(hours=72),
           "津波注意報": timedelta(hours=72), "津波警報": timedelta(hours=72), "大津波警報": timedelta(hours=72)}
+FORECAST_FALLBACK = timedelta(hours=12)  # 電文から継続時間を読めないときの予報の有効期間
+FORECAST_MARGIN = timedelta(hours=1)  # 電文の継続時間に足す余裕
+DETAIL_URL = "https://www.jma.go.jp/bosai/tsunami/data/"
 ALERTS = ("大津波警報", "津波警報", "津波注意報", "津波予報")  # 前方一致の優先順
 
 
 def fetch(timeout=20):
     with urllib.request.urlopen(URL, timeout=timeout) as r:
         return json.load(r)
+
+
+def parse_hours(text):
+    """電文本文の「今後２、３時間程度は…継続」→ 最大の時間数(3)。読めなければ None。全角数字・「２～３」「約２時間」に対応"""
+    m = re.search(r"今後([0-9０-９、,～〜\-ー約]+)時間", text or "")
+    if not m:
+        return None
+    nums = [int(x.translate(str.maketrans("０１２３４５６７８９", "0123456789"))) for x in re.findall(r"[0-9０-９]+", m.group(1))]
+    return max(nums) if nums else None
+
+
+def fetch_hours(item, timeout=10):
+    """津波予報の電文を取得し、継続時間(h)を返す。取得・解釈できなければ None"""
+    try:
+        with urllib.request.urlopen(DETAIL_URL + item["json"], timeout=timeout) as r:
+            d = json.load(r)
+        return parse_hours((d.get("Body") or {}).get("Text", ""))
+    except Exception:
+        return None
+
+
+def _forecast_window(it):
+    h = it.get("_hours")
+    return timedelta(hours=h) + FORECAST_MARGIN if h else FORECAST_FALLBACK
 
 
 def _kind_level(kind):
@@ -74,7 +104,8 @@ def classify(items, now=None):
             rdt = datetime.fromisoformat(it["rdt"])
         except Exception:
             continue
-        if now - rdt > WINDOW[lv]:
+        win = _forecast_window(it) if lv == "津波予報" else WINDOW[lv]
+        if now - rdt > win:
             continue
         if RANK[lv] > RANK[best]:
             best, best_item = lv, it
@@ -98,6 +129,9 @@ def current_state():
         items = fetch()
     except Exception:
         items = None
+    for it in items or []:  # 津波予報だけ、電文から継続時間を読む（古いものは取得しない）
+        if it.get("json") and all((k.get("kind", "").startswith("津波予報") for k in it.get("kind", []))) and it.get("kind"):
+            it["_hours"] = fetch_hours(it)
     return classify(items)
 
 
