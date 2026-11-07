@@ -392,14 +392,23 @@ def prune_text(text, facts):
     return "\n".join(out), dropped
 
 
+def strip_code_added(line, facts):
+    """コードが付けた部分（津波の固定文・「（H:MM時点）」）を除く。長さ検査はLLMが書いた分だけで行う（2026-11-07 津波予報の日に全件不合格になったため）"""
+    t = facts.get("tsunami", "")
+    if t and t != "（津波情報なし）":
+        line = line.replace(t, "")
+    return re.sub(r"（\d{1,2}:\d{2}時点）", "", line)
+
+
 def validate_tone(text, facts, vlm=None):
     """内容のバランスの機械検査（誇張・要点のずれ）。2026-10-13 に台風へ引きずられた投稿が出たため追加"""
     problems = validate_strong(text, facts)
     warn = facts.get("warnings", "")
     lines = [ln for ln in text.splitlines() if ln.strip()]
     for i, ln in enumerate(lines, 1):
-        if len(ln) > 100:
-            problems.append(f"{i}行目が長すぎる({len(ln)}字。80字以内に要約する)")
+        n = len(strip_code_added(ln, facts))
+        if n > 100:
+            problems.append(f"{i}行目が長すぎる({n}字。80字以内に要約する)")
     # 台風が主役の日（暴風・波浪・高潮の警報が発表中）は、1行目が台風でもよい（2026-10-24 台風30号が沖縄に接近した日に投稿が止まったため）
     if lines and "台風" in lines[0] and not re.search(r"暴風|波浪|高潮", warn):
         problems.append("1行目が台風になっている（天気の主役を先に書く）")

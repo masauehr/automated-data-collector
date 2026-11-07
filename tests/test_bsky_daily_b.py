@@ -28,6 +28,14 @@ class TestTone(unittest.TestCase):
         self.assertTrue(b.validate_tone("🤖x\n" + "あ" * 101 + "\ny", CALM))
         self.assertEqual(b.validate_tone("🤖x\n" + "あ" * 100 + "\ny", CALM), [])
 
+    def test_long_line_ignores_code_added_parts(self):
+        t = "関東東方沖の地震で津波予報（若干の海面変動）が発表されています。気象庁の最新情報を確認してください。"
+        f = dict(CALM, tsunami=t)
+        # コード付与分（津波文＋時点）を足して100字超でも、LLM分が100字以内なら合格
+        self.assertEqual(b.validate_tone("🤖x\n晴れ\n" + t + "（9:48時点）" + "あ" * 60, f), [])
+        # LLM分だけで100字超なら不合格
+        self.assertTrue(b.validate_tone("🤖x\n晴れ\n" + t + "（9:48時点）" + "あ" * 101, f))
+
     def test_typhoon_first_line_rejected(self):
         self.assertTrue(b.validate_tone("🤖台風29号が北上\n晴れ\n特になし", CALM))
 
