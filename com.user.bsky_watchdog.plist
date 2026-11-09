@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.bsky_watchdog</string>
+
+    <!-- Bluesky自動投稿の監視。10:00 に今日の結果ファイルが無ければ Slack に通知する（通知のみ。停止・再実行はしない） -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/python3</string>
+        <string>/Users/masahiro/openclaw_prj/projects/automated-data-collector/bin/bsky_watchdog.py</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key><integer>10</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/masahiro/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/masahiro/openclaw_prj/projects/automated-data-collector/shadow/watchdog.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/masahiro/openclaw_prj/projects/automated-data-collector/shadow/watchdog.log</string>
+</dict>
+</plist>

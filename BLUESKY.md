@@ -98,7 +98,7 @@ python3 bin/bsky_post.py --dry-run --text "テスト"                 # 投稿�
 | 文章化 | `claude --print --model claude-haiku-4-5`（サブスク経由）1回。機械検証に落ちたら指摘付きで1回だけ再生成 |
 | 投稿 | 検証・津波ガードに合格したときだけ `bsky_post.py` で投稿。不合格なら投稿しない（`shadow/<日付>_B.json` に `post_skipped`） |
 | 記録 | `shadow/YYYY-MM-DD_B.json`（本文・モード・トークン・問題・投稿結果）、ログ `shadow/launchd.log` |
-| 通知 | **Slack DM に毎回通知**（2026-10-16〜）。投稿成功／機械検証で見送り（問題点・生成文・再実行コマンド付き）／投稿失敗／スクリプト異常終了。`bin/notify.py` が `openclaw message send` 経由で送る。宛先は `~/.config/bsky/slack_to`（1行 `slack:U…`、git管理外）。OpenClaw Gateway 停止時は通知が届かない（投稿自体には影響なし） |
+| 通知 | **Slack DM に毎回通知**（2026-10-16〜）。投稿成功／機械検証で見送り（問題点・生成文・再実行コマンド付き）／投稿失敗／スクリプト異常終了。`bin/notify.py` が `openclaw message send` 経由で送る。宛先は `~/.config/bsky/slack_to`（1行 `slack:U…`、git管理外）。OpenClaw Gateway 停止時は通知が届かない（投稿自体には影響なし）。終わらない・起動しない日は `bsky_watchdog`（10:00）が通知（2026-11-09〜） |
 
 運用: `launchctl list | grep bsky_daily_b` ／ 手動実行 `/opt/homebrew/bin/python3 bin/bsky_daily_b.py [--post]` ／ 停止 `launchctl bootout gui/501/com.user.bsky_daily_b`
 **A版（非公開の内部実行・比較用）**: OpenClaw cron `bsky-internal-a`（id `348e8844-f81c-4898-9e6e-867720cd1347`、毎日 9:45、`bsky_post.py --shadow A` で `shadow/<日付>_A.json` に保存するだけ。Bluesky・Slack には出さない）。OpenClaw には 2026-10-11 から気象庁MCP `jma` が登録済み（`jma__get_typhoon` 等）。比較: `python3 bin/compare_bsky.py`。
@@ -195,3 +195,12 @@ VLM 側の `wind_now` の区切りは、同日に気象庁の風の強さの表�
 
 ## 2026-11-02 末尾リンク
 - 検査通過後に4行目として jma-navigator のリンクを付ける（`add_navigator_link`、300字超なら付けない）。
+
+## 2026-11-09 追記: 終わらない・起動しない日の監視（bsky_watchdog）
+
+- **事象**: 11/9 は claude CLI（haiku）が約1時間応答せず固まり、投稿が9:40予定から約90分遅れて11:11になった。本体の通知は「完了・見送り・異常終了」のときだけ送るため、完了まで何も通知されなかった。10/23 にも同種のタイムアウトで未投稿になっている。
+- **対処（1: 通知）**: `bin/bsky_watchdog.py` を追加し、launchd `com.user.bsky_watchdog`（毎日 **10:00**、設定の正本は本リポジトリの `com.user.bsky_watchdog.plist`、`~/Library/LaunchAgents/` へ配置）で実行する。10:00 になっても `shadow/<今日>_B.json` が無ければ Slack DM に通知する（結果ファイルは本体の最後に書かれるため、あれば本体は終了済み）。
+  - プロセスが残っていれば PID・経過時間・コマンド（子の claude CLI を含む）を添える＝ハングの疑い。残っていなければ「launchd が起動しなかった（スリープ・設定不備）可能性」。
+  - **通知のみ**。プロセスの停止（kill）や再実行は自動では行わない（通知文に手動の停止・再実行コマンドを載せる）。
+  - テスト `tests/test_bsky_watchdog.py`（結果あり／ハング／未起動／前日分は無効）。全76件OK。
+- **未対応**: ②`subprocess.run` を `Popen`＋プロセスグループ強制終了にしてタイムアウトを確実に効かせる、③9:40のスリープ復帰待ちの回避（`wakeguard` 等）。原因が claude 側のハングかスリープによる時間の飛びかは未確定。
