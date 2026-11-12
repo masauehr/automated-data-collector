@@ -14,6 +14,8 @@ import json
 import os
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -46,8 +48,24 @@ def api(method, nsid, body, token=None):
         method=method,
         headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {token}"} if token else {})},
     )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.load(r)
+    # 一時的な通信エラーはやり直す（2026-11-12 の投稿失敗対策）。
+    # 二重投稿を避けるため、投稿作成(createRecord)は「未処理で確実」な HTTP 429/502/503 のときだけやり直す。
+    safe_any = nsid != "com.atproto.repo.createRecord"
+    last = None
+    for i in range(4):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 500, 502, 503, 504) or (not safe_any and e.code not in (429, 502, 503)):
+                raise
+            last = e
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            if not safe_any:
+                raise
+            last = e
+        time.sleep(5 * (i + 1))
+    raise last
 
 
 def link_facets(text):

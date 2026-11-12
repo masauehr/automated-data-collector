@@ -603,7 +603,8 @@ def main():
         else:
             r = subprocess.run([sys.executable, str(HERE / "bsky_post.py"), "--text", text], capture_output=True, text=True)
             rec["posted"] = r.returncode == 0
-            rec["post_result"] = (r.stdout or r.stderr).strip()[:200]
+            # 失敗時は例外名が末尾に出るので、先頭ではなく末尾を残す
+            rec["post_result"] = (r.stdout or r.stderr).strip()[-600:]
         notify.send(_notify_text(rec))
     SHADOW.mkdir(exist_ok=True)
     (SHADOW / f"{today}_{a.label}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=2))
