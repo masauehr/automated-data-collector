@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.wakeguard_morning</string>
+
+    <!-- 9時台の朝ジョブ（weather-jp-am 9:10 / econ-jp-am 9:20 / Bluesky 9:40 / 10:00 監視）対策。
+         2026-11-13: 帰宅後（蓋は開けたままバッテリー駆動）に Mac がアイドルスリープし、
+         DarkWake の合間にしか動けず、cron が 3 回中 2 回タイムアウト・Bluesky の見送り通知も届かなかった。
+         caffeinate -i でアイドルスリープを 2 時間（8:55〜10:55）防止する。蓋を閉じたスリープは防げない。
+         通勤中（6:40〜8:30）は通信できない前提のため、その時間帯は対象にしない。 -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>-t</string>
+        <string>7200</string>
+    </array>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>55</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/masahiro/projects/ml_forecast/wakeguard.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/masahiro/projects/ml_forecast/wakeguard.log</string>
+</dict>
+</plist>

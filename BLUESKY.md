@@ -222,3 +222,16 @@ VLM 側の `wind_now` の区切りは、同日に気象庁の風の強さの表�
 - **既存 `wakeguard`** は 5:58〜7:03 のみで 9 時台は守られていなかった。
 - **対策**: launchd `com.user.wakeguard_morning`（毎日 8:55 に `caffeinate -i -t 7200`、10:55 まで）を追加。アイドルスリープのみ防ぎ、蓋を閉じたスリープは防げない。通勤中（6:40〜8:30）は通信できない前提のため対象外。設定は `~/Library/LaunchAgents/com.user.wakeguard_morning.plist`。
 - 11/9 の claude CLI ハングも同じ原因だった可能性がある（未確定）。
+
+### wakeguard_morning の前提・確認手順・既知の未解決点（2026-11-13）
+
+- **前提（ユーザー確認済み）**: 6:40〜8:30 は通勤のため Mac は通信できない。9 時台は通常、**蓋を開けたままバッテリー駆動**。このため `caffeinate -i`（アイドルスリープ防止）で足りる。**蓋を閉じる／電源を落とす運用になった場合は効かない**ので再検討すること。
+- **設定の正本**: 本リポジトリの `com.user.wakeguard_morning.plist`。`~/Library/LaunchAgents/` へ配置し `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.user.wakeguard_morning.plist` で登録（変更時は先に `bootout`）。
+- **効果の確認**:
+  - `openclaw cron runs --id 445881d3-08ac-4260-819d-6ab807a3d23a --limit 5`（weather-jp-am）で、起動が 9:10 ちょうど・所要が数十秒・status が ok であること。
+  - `pmset -g log | grep -E "^<日付> 09:" | grep -E "Sleep|Wake|DarkWake"` で 9 時台にスリープ／DarkWake が出ていないこと。
+  - Bluesky の `shadow/<日付>_B.json` の `generated_at` が 9:40 台前半であること。
+- **既知の未解決点**:
+  - 11/13 朝の Bluesky 見送り通知が届かなかった原因は未特定（ログに送信記録・失敗記録なし。通知経路自体は試験送信で正常）。復帰直後の通信不安定という推測のみ。`notify.py` が失敗を握りつぶしてローカルにも残さないため、今後は失敗のログ化と再試行を検討（未実装）。
+  - ウォッチドッグ（10:00）が「結果あり・未投稿」も通知するようになったので、見送り通知が届かなくても 10:00 に気づける。
+  - 11/9 の claude CLI ハングも同じスリープが原因の可能性（未確定）。
