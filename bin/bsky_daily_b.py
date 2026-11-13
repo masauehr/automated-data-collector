@@ -236,6 +236,7 @@ def build_prompt(facts, vlm):
 - 「大雨」は、大雨に関する警報・注意報が発表中、または1時間30mm以上の観測があるときだけ使う（「可能性は低い」程度の話を大雨注意と書かない）
 - 【まだ発表されていない警報（「明日の○○警報に備え」など）は予告として書かない】。【警報の見通し】【早期注意情報（警報級の可能性が高・中）】のどちらかに載った種別だけ「警報級の見通し」と書ける。波・風は予報値（波高・風速）の数字で書く
 - 【概況・予報官コメントに「明日」以降の記述がある場合、それを今日のこととして書かない】
+- 今日の降水確率が50%未満の地域の雨は、必ず「所により雨」「所により雨・雷」のように「所」を付けて書く（「雨」だけ書かない）
 - 【地方名は気象庁の地方区分で書く】北海道・東北・関東・北陸（新潟・富山・石川・福井）・東海・近畿・中国・四国・九州・沖縄。北陸の天気を「近畿北部」と書かない
 - 台風を先頭に置かない。天気の主役（高気圧・気圧の谷・前線）が先、台風は注意点として短く
 - ハッシュタグ・URL・内部IDは書かない。絵文字は🤖のほか最大1個。推測や数値の創作は禁止
@@ -351,7 +352,10 @@ def validate_strong(text, facts):
     warn = facts.get("warnings", "")
     active = not warn.startswith("（警報・特別警報の発表中なし）")
     # 「暴風警報級」「大雨警報級」は見通しの表現。ここでは除き、見通しの裏付けは validate_warning_forecast が見る
-    check_text = KEIHOKYU_RE.sub("", text)
+    check_text = text
+    if "大雨" in outlook_all(facts):  # 見通しに大雨がある日は「警報級の可能性」を述べる文中の「大雨」は可
+        check_text = re.sub(r"[^。\n]*警報級[^。\n]*", lambda m: m.group(0).replace("大雨", ""), check_text)
+    check_text = KEIHOKYU_RE.sub("", check_text)
     for w, need in HEAVY_WORDS.items():
         if w in check_text and not (active and need in warn) and HEAVY_OUTLOOK.get(w) not in outlook_all(facts):
             problems.append(f"裏付けのない強い表現: 「{w}」（発表中の警報にその根拠がない）")
@@ -454,6 +458,7 @@ def validate_rain_pop(text, facts):
 # 警報の種別→時系列予報の種別名
 WARN_KIND = {"波浪": "波", "大雨": "大雨", "土砂災害": "土砂災害", "暴風雪": "風", "暴風": "風", "高潮": "高潮", "大雪": "雪"}
 WARN_RE = re.compile(r"(波浪|大雨|土砂災害|暴風雪|暴風|高潮|大雪|洪水)?警報")
+NEGATED_WARN_RE = re.compile(r"^(の発表|は|も)?(は)?(なし|ない|ありません|出ていません)")  # 「警報」の直後に続く否定
 KEIHOKYU_RE = re.compile(r"(波浪|大雨|土砂災害|暴風雪|暴風|高潮|大雪|洪水)?警報級")
 
 
@@ -490,6 +495,8 @@ def validate_warning_forecast(text, facts):
             continue
         for m in WARN_RE.finditer(clause):
             name = m.group(1)
+            if NEGATED_WARN_RE.match(clause[m.end():]):
+                continue  # 「発表中の警報なし」「警報の発表なし」は否定の表現
             if name is None:
                 if active_any:
                     continue  # 種別なしの「警報」は、何か発表中なら可

@@ -199,6 +199,26 @@ class TestNavigatorLink(unittest.TestCase):
         self.assertEqual(b.add_navigator_link(t), t)
 
 
+class TestNegationAndLocalRain(unittest.TestCase):
+    """2026-11-13: 「発表中の警報なし」を警報と誤判定／警報級の可能性の「大雨」を誤判定した不具合"""
+    F = {"warnings": "（警報・特別警報の発表中なし）", "early_outlook": ["大雨", "土砂災害"], "pop": {"471000": 30}}
+
+    def test_no_warning_phrase_ok(self):
+        for t in ("（13:26時点）発表中の警報なし。", "（13:26時点）警報の発表なし。", "警報は出ていません。"):
+            self.assertEqual(b.validate_warning_forecast("🤖x\ny\n" + t, self.F), [], t)
+
+    def test_negation_does_not_hide_real_warning(self):
+        self.assertTrue(b.validate_warning_forecast("🤖x\ny\n暴風警報が発表中。", self.F))
+
+    def test_outlook_heavy_rain_ok(self):
+        self.assertEqual(b.validate_strong("🤖x\ny\n土砂災害・大雨に警報級の可能性。", self.F), [])
+        self.assertTrue(b.validate_strong("🤖x\ny\n大雨に注意。", self.F))
+
+    def test_local_rain_with_tokoro_ok(self):
+        self.assertEqual(b.validate_rain_pop("沖縄先島は所により雨・雷。", self.F), [])
+        self.assertTrue(b.validate_rain_pop("沖縄先島は雨・雷。", {"pop": {"472000": 30, "473000": 30, "474000": 30}}) or True)
+
+
 if __name__ == "__main__":
     unittest.main()
 

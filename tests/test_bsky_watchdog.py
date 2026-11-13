@@ -26,6 +26,23 @@ class TestWatchdog(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self.assertIn("起動しなかった", w.build_message(NOW, d, []))
 
+    def test_alert_when_skipped(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "2026-11-09_B.json").write_text('{"posted": false, "post_skipped": "機械検証で不合格のため投稿しない", "problems": ["裏付けのない「大雨」"]}')
+            m = w.build_message(NOW, d, [])
+            self.assertIn("まだ投稿されていません", m)
+            self.assertIn("裏付けのない「大雨」", m)
+
+    def test_no_alert_when_posted(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "2026-11-09_B.json").write_text('{"posted": true}')
+            self.assertIsNone(w.build_message(NOW, d, []))
+
+    def test_broken_json_does_not_alert(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "2026-11-09_B.json").write_text("{")
+            self.assertIsNone(w.build_message(NOW, d, []))
+
     def test_yesterday_result_does_not_count(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "2026-11-08_B.json").write_text("{}")
